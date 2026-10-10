@@ -1,0 +1,415 @@
+// EarthMind PIOS - SQLite Database Schema (auto-migrated from PostgreSQL)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Department {
+  id          String    @id @default(uuid())
+  code        String    @unique
+  name        String
+  description String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  users                User[]
+  incidents            Incident[]
+  dispatches           Dispatch[]
+  agencyParticipations AgencyParticipation[]
+
+  @@map("departments")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  email        String    @unique
+  passwordHash String
+  fullName     String
+  role         String    @default("FIELD_OFFICER")
+  departmentId String?
+  department   Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  phone        String?
+  avatarUrl    String?
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  createdIncidents  Incident[]         @relation("CreatedIncidents")
+  assignedIncidents Incident[]         @relation("AssignedIncidents")
+  uploadedEvidence  EvidenceItem[]     @relation("UploadedEvidence")
+  timelineActions   IncidentTimeline[] @relation("TimelineActor")
+  assignedTasks     Assignment[]       @relation("AssignedTasks")
+  givenAssignments  Assignment[]       @relation("GivenAssignments")
+  notifications     Notification[]     @relation("RecipientNotifications")
+  dispatches        Dispatch[]
+
+  @@index([email])
+  @@index([role])
+  @@index([departmentId])
+  @@map("users")
+}
+
+model Incident {
+  id                 String    @id @default(uuid())
+  incidentCode       String    @unique @default(cuid())
+  title              String
+  description        String
+  category           String
+  subcategory        String?
+  severity           String    @default("MEDIUM")
+  status             String    @default("ACTIVE")
+  departmentId       String?
+  departmentRel      Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  department         String
+  riskScore          Float     @default(0)
+  locationName       String
+  latitude           Float?
+  longitude          Float?
+  address            String?
+  aiSummary          String?
+  repairCostEstimate Float?
+  deletedAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  createdById       String?
+  createdBy         User?              @relation("CreatedIncidents", fields: [createdById], references: [id], onDelete: SetNull)
+  assignedOfficerId String?
+  assignedOfficer   User?              @relation("AssignedIncidents", fields: [assignedOfficerId], references: [id], onDelete: SetNull)
+
+  timeline        IncidentTimeline[]
+  evidenceItems   EvidenceItem[]
+  visionAnalyses  VisionAnalysis[]
+  assignments     Assignment[]
+  dispatches      Dispatch[]
+  earthImpact     EarthImpact?
+  riskAssessment  RiskAssessment?
+
+  @@index([status])
+  @@index([severity])
+  @@index([category])
+  @@index([departmentId])
+  @@index([createdById])
+  @@index([assignedOfficerId])
+  @@index([createdAt])
+  @@index([riskScore])
+  @@index([latitude, longitude])
+  @@map("incidents")
+}
+
+model IncidentTimeline {
+  id             String    @id @default(uuid())
+  incidentId     String
+  incident       Incident  @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  action         String
+  actorId        String?
+  actor          User?     @relation("TimelineActor", fields: [actorId], references: [id], onDelete: SetNull)
+  previousStatus String?
+  newStatus      String?
+  note           String?
+  createdAt      DateTime  @default(now())
+
+  @@index([incidentId])
+  @@index([actorId])
+  @@map("incident_timelines")
+}
+
+model EvidenceItem {
+  id               String    @id @default(uuid())
+  fileName         String
+  fileType         String    @default("IMAGE")
+  mimeType         String
+  sizeBytes        Int
+  storageUrl       String
+  status           String    @default("PENDING")
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  linkedIncidentId String?
+  linkedIncident   Incident?  @relation(fields: [linkedIncidentId], references: [id], onDelete: SetNull)
+  uploadedByUserId String?
+  uploadedByUser   User?      @relation("UploadedEvidence", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  ocrResult        OCRResult?
+  sensorTelemetry  SensorTelemetry?
+  visionAnalyses   VisionAnalysis[]
+
+  @@index([linkedIncidentId])
+  @@index([uploadedByUserId])
+  @@index([status])
+  @@index([fileType])
+  @@map("evidence_items")
+}
+
+model VisionAnalysis {
+  id                    String       @id @default(uuid())
+  evidenceItemId        String
+  evidenceItem          EvidenceItem @relation(fields: [evidenceItemId], references: [id], onDelete: Cascade)
+  incidentId            String?
+  incident              Incident?    @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  modelTask             String
+  modelVersion          String       @default("EarthMind-Vision-v2.0")
+  confidence            Float
+  damageScore           Float
+  riskScore             Float
+  aiSummary             String
+  recommendedCategory   String?
+  recommendedSeverity   String?
+  recommendedDepartment String?
+  totalInferenceMs      Int
+  createdAt             DateTime     @default(now())
+
+  boundingBoxes         BoundingBox[]
+
+  @@index([evidenceItemId])
+  @@index([incidentId])
+  @@index([confidence])
+  @@map("vision_analyses")
+}
+
+model BoundingBox {
+  id               String         @id @default(uuid())
+  visionAnalysisId String
+  visionAnalysis   VisionAnalysis @relation(fields: [visionAnalysisId], references: [id], onDelete: Cascade)
+  label            String
+  confidence       Float
+  severity         String
+  x                Float
+  y                Float
+  width            Float
+  height           Float
+  damageScore      Float
+  createdAt        DateTime       @default(now())
+
+  @@index([visionAnalysisId])
+  @@map("bounding_boxes")
+}
+
+model OCRResult {
+  id             String       @id @default(uuid())
+  evidenceItemId String       @unique
+  evidenceItem   EvidenceItem @relation(fields: [evidenceItemId], references: [id], onDelete: Cascade)
+  extractedText  String
+  confidence     Float
+  language       String       @default("en")
+  pageCount      Int          @default(1)
+  createdAt      DateTime     @default(now())
+
+  @@map("ocr_results")
+}
+
+model SensorTelemetry {
+  id                String        @id @default(uuid())
+  evidenceItemId    String        @unique
+  evidenceItem      EvidenceItem  @relation(fields: [evidenceItemId], references: [id], onDelete: Cascade)
+  sensorType        String        @default("AIR_QUALITY")
+  sensorId          String
+  readingValue      Float
+  unit              String
+  thresholdExceeded Boolean       @default(false)
+  recordedAt        DateTime
+  createdAt         DateTime      @default(now())
+
+  @@map("sensor_telemetries")
+}
+
+model Notification {
+  id               String    @id @default(uuid())
+  type             String
+  title            String
+  message          String
+  severity         String    @default("info")
+  isRead           Boolean   @default(false)
+  recipientId      String?
+  recipient        User?     @relation("RecipientNotifications", fields: [recipientId], references: [id], onDelete: SetNull)
+  recipientRole    String?
+  linkedEntityId   String?
+  linkedEntityType String?
+  channelEmail     Boolean   @default(false)
+  channelSms       Boolean   @default(false)
+  channelPush      Boolean   @default(true)
+  sentAt           DateTime?
+  readAt           DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([recipientId])
+  @@index([isRead])
+  @@index([type])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String
+  category    String
+  actorId     String
+  actorEmail  String
+  actorRole   String
+  targetId    String?
+  targetType  String?
+  description String
+  meta        String?
+  ipAddress   String?
+  userAgent   String?
+  traceId     String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorId])
+  @@index([category])
+  @@index([targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+model Assignment {
+  id           String    @id @default(uuid())
+  incidentId   String
+  incident     Incident  @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  assigneeId   String
+  assignee     User      @relation("AssignedTasks", fields: [assigneeId], references: [id], onDelete: Cascade)
+  assignedById String
+  assignedBy   User      @relation("GivenAssignments", fields: [assignedById], references: [id], onDelete: Cascade)
+  role         String
+  status       String    @default("ASSIGNED")
+  notes        String?
+  assignedAt   DateTime  @default(now())
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([incidentId])
+  @@index([assigneeId])
+  @@index([assignedById])
+  @@map("assignments")
+}
+
+model EarthImpact {
+  id                    String   @id @default(uuid())
+  incidentId            String   @unique
+  incident              Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  carbonImpactTonnes    Float    @default(0)
+  waterSavedLiters      Float    @default(0)
+  biodiversityRiskIndex Float    @default(0)
+  sustainabilityScore   Float    @default(100)
+  ecosystemDamageLevel  String   @default("low")
+  evaluatedAt           DateTime @default(now())
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@map("earth_impacts")
+}
+
+model RiskAssessment {
+  id                  String   @id @default(uuid())
+  incidentId          String   @unique
+  incident            Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  overallRiskScore    Float
+  publicSafetyRisk    Float
+  environmentalRisk   Float
+  financialRisk       Float
+  operationalRisk     Float
+  aiRecommendation    String
+  assessedAt          DateTime @default(now())
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("risk_assessments")
+}
+
+model Dispatch {
+  id                     String    @id @default(uuid())
+  incidentId             String
+  incident               Incident  @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  assignedOfficerId      String?
+  assignedOfficer        User?     @relation(fields: [assignedOfficerId], references: [id], onDelete: SetNull)
+  departmentId           String?
+  department             Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  priority               String    @default("MEDIUM")
+  status                 String    @default("PENDING")
+  dispatchReason         String
+  assignedAt             DateTime  @default(now())
+  acknowledgedAt         DateTime?
+  dispatchedAt           DateTime?
+  enRouteAt              DateTime?
+  onSceneAt              DateTime?
+  estimatedResponseTime  Int?
+  actualResponseTime     Int?
+  completedAt            DateTime?
+  escalationLevel        Int       @default(0)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  events        DispatchEvent[]
+  coordinations AgencyParticipation[]
+
+  @@index([incidentId])
+  @@index([assignedOfficerId])
+  @@index([departmentId])
+  @@index([status])
+  @@index([priority])
+  @@map("dispatches")
+}
+
+model DispatchEvent {
+  id            String   @id @default(uuid())
+  dispatchId    String
+  dispatch      Dispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  eventType     String
+  actorId       String?
+  correlationId String?
+  causationId   String?
+  metadata      String?
+  timestamp     DateTime @default(now())
+
+  @@index([dispatchId])
+  @@index([eventType])
+  @@index([timestamp])
+  @@map("dispatch_events")
+}
+
+model AgencyParticipation {
+  id             String     @id @default(uuid())
+  dispatchId     String
+  dispatch       Dispatch   @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  incidentId     String
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  isPrimary      Boolean    @default(false)
+  responsibility String
+  status         String     @default("JOINED")
+  acknowledgedAt DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime   @default(now())
+
+  @@index([dispatchId])
+  @@index([departmentId])
+  @@map("agency_participations")
+}
+
+model NotificationDelivery {
+  id             String    @id @default(uuid())
+  notificationId String
+  channel        String
+  recipient      String
+  status         String    @default("PENDING")
+  error          String?
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([notificationId])
+  @@index([status])
+  @@map("notification_deliveries")
+}

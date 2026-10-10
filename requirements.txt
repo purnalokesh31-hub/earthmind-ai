@@ -1,0 +1,9 @@
+# EarthMind AI (PIOS) Python Requirements
+# 
+# The Python backend API runs entirely on Python's built-in standard libraries
+# (http.server, sqlite3, json, threading, uuid, os, re).
+# 
+# NO external packages (like fastapi, sqlalchemy, pydantic, or multipart)
+# are required to run this backend!
+# 
+# You do not need to pip install anything to run the server or tests.

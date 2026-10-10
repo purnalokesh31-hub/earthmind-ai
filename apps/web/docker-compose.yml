@@ -1,0 +1,82 @@
+# ──────────────────────────────────────────────────────────────
+# EarthMind PIOS — Docker Compose Multi-Service Architecture
+# Services: Next.js App, PostgreSQL 16 + PostGIS, Redis 7
+# ──────────────────────────────────────────────────────────────
+
+version: '3.8'
+
+services:
+  # ── 1. Next.js Web Application ───────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: earthmind-web
+    restart: always
+    ports:
+      - '3000:3000'
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://earthmind:earthmind_secure_pass_2026@postgres:5432/earthmind_db?schema=public
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - STORAGE_DRIVER=local
+      - LOCAL_STORAGE_PATH=./public/uploads
+      - AI_ENGINE_URL=http://localhost:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - earthmind-network
+
+  # ── 2. PostgreSQL 16 with PostGIS Spatial Extension ──────────
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: earthmind-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: earthmind
+      POSTGRES_PASSWORD: earthmind_secure_pass_2026
+      POSTGRES_DB: earthmind_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U earthmind -d earthmind_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - earthmind-network
+
+  # ── 3. Redis 7 Alpine In-Memory Cache ─────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: earthmind-redis
+    restart: always
+    ports:
+      - '6379:6379'
+    command: redis-server --save 60 1 --loglevel notice
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - earthmind-network
+
+networks:
+  earthmind-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

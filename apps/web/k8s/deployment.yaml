@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: earthmind-web-deployment
+  labels:
+    app: earthmind-web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: earthmind-web
+  template:
+    metadata:
+      labels:
+        app: earthmind-web
+    spec:
+      containers:
+        - name: earthmind-web
+          image: earthmind/web:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: earthmind-config
+          livenessProbe:
+            httpGet:
+              path: /api/v1/live
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/v1/ready
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

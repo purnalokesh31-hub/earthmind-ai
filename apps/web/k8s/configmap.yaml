@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: earthmind-config
+data:
+  NODE_ENV: "production"
+  PORT: "3000"
+  REDIS_HOST: "earthmind-redis-service"
+  REDIS_PORT: "6379"
+  STORAGE_DRIVER: "local"
+  AI_ENGINE_URL: "http://earthmind-ai-engine-service:8000"

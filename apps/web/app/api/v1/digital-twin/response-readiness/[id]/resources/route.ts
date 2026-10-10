@@ -1,0 +1,36 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { authenticate } from '@/lib/server/auth/middleware.helpers';
+import { memoryCityResponseReadinessRepository } from '@/lib/server/repositories/city-response-readiness.repository';
+
+export const dynamic = 'force-dynamic';
+
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const auth = await authenticate(req);
+    if (!auth) {
+      return NextResponse.json({ success: false, error: 'UNAUTHORIZED' }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const entity = memoryCityResponseReadinessRepository.getReadiness(id);
+
+    if (!entity) {
+      return NextResponse.json({ success: false, error: `Response readiness assessment '${id}' not found.` }, { status: 404 });
+    }
+
+    const resources = entity.actions.flatMap((a) => a.resources);
+    const crews = entity.actions.flatMap((a) => a.crews);
+
+    return NextResponse.json({
+      success: true,
+      data: { resources, crews },
+      requiresHumanApproval: true,
+      advisoryOnly: true,
+      autonomousExecution: false,
+      provenance: 'RESPONSE_READINESS',
+    });
+  } catch (err: any) {
+    const statusCode = err.statusCode || (err.message?.includes('token') || err.message?.includes('Authentication') || err.message?.includes('UNAUTHORIZED') ? 401 : err.message?.includes('FORBIDDEN') ? 403 : 500);
+    return NextResponse.json({ success: false, error: err.message || 'INTERNAL_ERROR' }, { status: statusCode });
+  }
+}
