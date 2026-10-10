@@ -3,131 +3,123 @@
 
 **AI-powered urban intelligence for smarter, safer, and more sustainable cities.**
 
-EarthMind PIOS is a city intelligence platform designed to help municipal teams monitor urban problems, analyze reports, identify potential risks, and make better decisions using AI.
+EarthMind PIOS is an AI-powered city intelligence platform designed to help municipal teams monitor urban problems, analyze reports, identify potential risks, and make better decisions.
 
 It brings information from different city domains into one unified command center, helping human operators understand problems and decide what actions should be taken.
 
-> **"EarthMind recommends. Human operators decide. No autonomous physical execution."**
+> **EarthMind recommends. Human operators decide. No autonomous physical execution.**
 
 ---
 
 ## 🎯 Key Features
 
-- 🏙️ **City Command Center** — View real-time city intelligence and urban-domain status in one place.
-- 🌦️ **Multi-Domain Monitoring** — Organize information about weather, the environment, mobility, transit, utilities, emergencies, and citizen reports.
-- 📸 **Evidence-Based Reporting** — Support workflows for collecting, compressing, and analyzing incident evidence (images, audio, GPS).
-- 🤖 **AI-Assisted Analysis** — Architecture for visual analysis, voice processing, natural-language queries, and risk assessment.
-- ⚠️ **Risk Intelligence** — Identify, prioritize, and simulate potential urban cascading risks.
-- 👨‍💼 **Human Approval & Governance** — Keep operational decisions strictly under authorized human control (`requiresHumanApproval: true`).
-- 🧪 **Demo and Simulation** — Explore supported workflows using mock data, demo gateways, and simulated providers.
-
----
+- 🏙️ **City Command Center** — Monitor city intelligence and urban-domain status in one place.
+- 🌦️ **Multi-Domain Monitoring** — Monitor environmental, weather, mobility, transit, utility, emergency, and citizen-related information.
+- 📸 **Evidence-Based Reporting** — Support workflows for collecting and analyzing incident evidence.
+- 🤖 **AI-Assisted Analysis** — Support visual analysis, voice processing, natural-language queries, and risk assessment.
+- ⚠️ **Risk Intelligence** — Identify and prioritize potential urban risks.
+- 👨‍💼 **Human Approval** — Keep operational decisions under authorized human control.
+- 🧪 **Demo and Simulation** — Explore workflows using mock data and simulated providers.
 
 ## 🏙️ Seven Urban Intelligence Domains
 
-1. **Environmental Intelligence** — Air quality, soil saturation, heat islands, and ecological anomalies.
-2. **Weather Intelligence** — Precipitation, storm tracking, temperature spikes, and climate exposure.
-3. **Mobility Intelligence** — Traffic bottleneck identification, arterial congestion, and emergency vehicle routing.
-4. **Transit Intelligence** — Public transit telemetry, bus/rail disruptions, delay tracking, and multimodal detours.
-5. **Utility Intelligence** — Water pressure anomalies, pipe leakage detection, power grid load balancing, and transformer thermal mitigation.
-6. **Emergency Intelligence** — Incident triage, emergency services readiness, and multi-agency response coordination.
-7. **Citizen Intelligence** — Verified citizen field reports, community feedback, and local hazard verification.
-
----
+1. **Environmental Intelligence** — Pollution, waste, and environmental concerns.
+2. **Weather Intelligence** — Weather conditions and weather-related risks.
+3. **Mobility Intelligence** — Road conditions, congestion, and mobility incidents.
+4. **Transit Intelligence** — Public transportation, delays, and disruptions.
+5. **Utility Intelligence** — Water, electricity, and public utility issues.
+6. **Emergency Intelligence** — Emergency incidents and risk indicators.
+7. **Citizen Intelligence** — Citizen reports, community feedback, and local concerns.
 
 ## ⚙️ How It Works
 
-```
-COLLECT ──► ANALYZE ──► ASSESS ──► RECOMMEND ──► REVIEW & APPROVE ──► TRACK & AUDIT
-```
+**Collect → Analyze → Assess → Recommend → Human Review → Track**
 
-1. **Collect** — Receive city telemetry feeds, citizen reports, and uploaded evidence.
-2. **Analyze** — Process evidence (vision tags, audio notes, geolocation) and identify the relevant domain.
-3. **Assess** — Evaluate potential risks, failure probabilities, and priority queues.
-4. **Recommend** — Generate resource-constrained, multi-objective suggested actions.
-5. **Review** — Authorized human operators review, inspect tradeoffs, and approve or reject recommendations.
-6. **Track** — Record decisions into immutable audit logs and follow the operational lifecycle.
-
----
+1. **Collect** — Receive available city data, reports, and evidence.
+2. **Analyze** — Process information and identify the relevant domain.
+3. **Assess** — Evaluate potential risks and priorities.
+4. **Recommend** — Generate suggested actions.
+5. **Review** — Authorized operators approve or reject recommendations.
+6. **Track** — Record decisions and monitor the workflow.
 
 ## 🛠️ Technology Stack
 
 - **Frontend:** Next.js 15, React 19, TypeScript
 - **State Management:** Zustand
-- **Styling:** Tailwind CSS, Framer Motion, Lucide Icons
+- **Styling:** Tailwind CSS, Framer Motion
+- **Icons:** Lucide Icons
 - **Mapping:** MapLibre GL
-- **Testing:** Vitest (136 test suites, 900+ passing tests)
-- **Database & ORM:** Prisma ORM, SQLite (local development) and PostgreSQL/PostGIS (containerized target)
-- **Backend Intelligence:** Python standard-library zero-dependency API server (`apps/api`)
+- **Testing:** Vitest
+- **Database:** Prisma, SQLite, PostgreSQL/PostGIS configuration
+- **Backend:** Python
 - **Deployment Tools:** Docker, Docker Compose, Kubernetes
-
----
 
 ## 🚧 Current Project Status
 
 EarthMind PIOS has a core application architecture, command-center interface, advisory workflows, governance mechanisms, and demo/simulation capabilities.
 
-Some components are still under active development:
+Some components are still under development:
 
-- **Live municipal IoT and SCADA integrations** are not connected (currently utilizing mock adapters and demo fixtures with fallback resilience).
-- **AI agents** currently leverage heuristic rules and simulated inference pipelines rather than live tensor model servers.
-- **Predictive risk assessment** currently relies on synthetic training data and fallback logistic formulas.
-- **Database configuration** between SQLite and PostgreSQL/PostGIS requires ongoing alignment.
-- **Placeholder directories** remain in select shared package and documentation folders.
-- **Automated CI/CD pipelines** and live cloud hosting deployments are pending.
+- **Live City Data:** Municipal IoT and SCADA integrations are not connected.
+- **AI/ML Models:** Some agents still use heuristics and simulated outputs.
+- **Predictive Risk:** Risk assessment uses synthetic data and fallback formulas.
+- **Database Integration:** SQLite and PostgreSQL/PostGIS configurations need alignment.
+- **Shared Packages:** Some reusable packages and documentation are incomplete.
+- **CI/CD:** Automated GitHub Actions workflows are pending.
+- **Cloud Deployment:** Production cloud hosting is not yet completed.
 
-The project is **under active development** and is designed as an advisory decision-support platform.
-
----
+The project is under active development and is not yet fully production-ready.
 
 ## 🔮 Future Implementations
 
 ### Phase 1 — Live City Data
-Connect authorized municipal APIs, IoT sensors, transit feeds (GTFS-RT), and utility telemetry sources.
+Connect authorized municipal APIs, IoT sensors, transit feeds, and utility data.
 
 ### Phase 2 — Real AI Models
-Replace simulated AI workflows with evaluated computer vision (YOLOv11), speech-to-text (Whisper), LLM reasoning (Gemini API), and fine-tuned predictive models.
+Integrate computer vision, speech-to-text, language models, and predictive ML models.
 
 ### Phase 3 — Database Integration
-Harmonize Prisma SQLite and PostgreSQL/PostGIS schemas and establish production clustering with spatial indexing.
+Align database configurations and improve reliable data storage and geospatial queries.
 
 ### Phase 4 — Evidence Collection
-Complete offline media caching, progressive client-side canvas compression, and background synchronization queues.
+Improve image, audio, video, location, and offline evidence collection.
 
 ### Phase 5 — Better Architecture
-Complete shared packages (`@earthmind/shared-types`, `@earthmind/ui`), reusable modules, and formal API specifications.
+Complete shared packages, reusable components, and API documentation.
 
-### Phase 6 — Security and API Improvements
-Strengthen JWT token rotation, role-based access control (RBAC), request validation, tamper-proof logging, and security headers.
+### Phase 6 — Security Improvements
+Strengthen authentication, access control, input validation, and audit logging.
 
-### Phase 7 — Automated Testing and CI/CD
-Automate code quality checks, end-to-end testing, security dependency scanning, and Docker builds via GitHub Actions.
+### Phase 7 — CI/CD Automation
+Automate testing, code quality checks, security scans, and builds using GitHub Actions.
 
 ### Phase 8 — Cloud Deployment
-Deploy the platform through a secure, monitored, and repeatable cloud deployment process (Kubernetes / Helm / Managed Cloud).
+Deploy the platform through a secure and monitored cloud environment.
 
-### Phase 9 — Explainable Recommendations
-Expose transparent attribution scorecards showing operators why a recommendation was generated, which evidence supports it, and what confidence levels exist.
+### Phase 9 — Explainable AI
+Show why recommendations were generated and which evidence supports them.
 
 ### Phase 10 — Real-World Pilot
-Validate the platform with representative municipal pilot datasets and authorized public safety stakeholders.
+Validate the platform using representative city data and authorized stakeholders.
 
-*These phases represent planned development roadmap milestones.*
-
----
+*These phases represent planned improvements, not completed features.*
 
 ## 🔐 Safety and Governance
 
 EarthMind PIOS is a **decision-support system, not an autonomous control system**.
 
-Its core safety requirements are:
+- **Human Approval Required:** Operational decisions require authorized human review.
+- **Advisory Only:** AI-generated recommendations are suggestions, not commands.
+- **No Autonomous Physical Execution:** The system must not autonomously operate water valves, power equipment, traffic signals, or other physical infrastructure.
+- **Audit Logging:** Human decisions should be recorded with appropriate user and timestamp details.
 
-- **Human Approval Required:** Every operational action requires explicit human operator sign-off (`requiresHumanApproval: true`).
-- **Advisory Only:** All AI-generated recommendations, priority rankings, and interventions are strictly advisory.
-- **No Autonomous Physical Execution:** Physical infrastructure such as water valves, power switches, and traffic control signals are **never** operated autonomously.
-- **Audit Logging:** Every human operator approval, rejection, or override is immutably logged with user identification and timestamps.
+Core safety requirements:
 
----
+```typescript
+requiresHumanApproval === true
+advisoryOnly === true
+autonomousExecution === false
+
 
 ## 🚀 Getting Started
 
@@ -138,7 +130,7 @@ git clone https://github.com/purnalokesh31-hub/earthmind-ai.git
 cd earthmind-ai
 ```
 
-### 2. Run the Web Command Center (Next.js)
+### 2. Start the Web Application
 
 ```bash
 cd apps/web
@@ -146,41 +138,55 @@ npm install
 npm run dev
 ```
 
-The web dashboard will be available at: **`http://localhost:3000`**
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 3. Run the Python Backend API (Zero-Dependency)
+### 3. Start the Python Backend
 
-From the project root:
+From the repository root, run:
 
 ```bash
 python apps/api/app/main.py
 ```
 
-The API will start at: **`http://localhost:8000`** (Health check: `http://localhost:8000/api/health`)
+The API is expected to run at [http://localhost:8000](http://localhost:8000).
 
-### 4. Run Test Suites
+**Health check:** [http://localhost:8000/api/health](http://localhost:8000/api/health)
 
-* **Frontend & Domain Suite:**
-  ```bash
-  cd apps/web
-  npm test
-  ```
-* **Python Platform Suite:**
-  ```bash
-  python tests/test_platform.py
-  ```
+### 4. Run Tests
+
+**Frontend tests:**
+
+```bash
+cd apps/web
+npm test
+```
+
+**Python platform tests** (from the repository root):
+
+```bash
+python tests/test_platform.py
+```
+
+Ensure your environment variables and dependencies are configured before running the application.
 
 ---
 
 ## 🤝 Contributions
 
-Contributions and suggestions are welcome in areas such as AI/ML model integration, municipal data connectors, frontend usability, database reliability, security, testing, and documentation.
+Suggestions and contributions are welcome in:
+
+- AI/ML integration
+- Municipal data connectors
+- Frontend development
+- Database and API improvements
+- Security and testing
+- Documentation and deployment
 
 ---
 
 ## 📄 License
 
-This project is currently under proprietary evaluation. An open-source license will be designated upon public release.
+This project is currently under proprietary evaluation. An open-source license will be designated if and when the project is released under one.
 
 ---
 
