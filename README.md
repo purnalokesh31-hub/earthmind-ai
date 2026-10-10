@@ -119,7 +119,7 @@ Core safety requirements:
 requiresHumanApproval === true
 advisoryOnly === true
 autonomousExecution === false
-
+```
 
 ## 🚀 Getting Started
 
