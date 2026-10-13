@@ -272,6 +272,7 @@ export const NAV_ITEMS: any[] = [
   { id: 'map', label: 'Live Map', icon: '🗺️' },
   { id: 'insights', label: 'Insights', icon: '📊' },
   { id: 'audit', label: 'Audit Ledger', icon: '🛡️' },
+  { id: 'admin', label: 'Admin Panel', icon: '🔐' },
   { id: 'ai', label: 'AI Assistant', icon: '🤖' },
   { id: 'reports', label: 'Reports', icon: '📄' },
   { id: 'settings', label: 'Settings', icon: '⚙️' }

@@ -29,6 +29,7 @@ import AuditHistory from '../components/workspaces/AuditHistory';
 import DomainWorkspacePage from '../components/workspaces/DomainWorkspacePage';
 import EvidenceWorkspace from '../components/workspaces/EvidenceWorkspace';
 import ComputerVisionWorkspace from '../components/workspaces/ComputerVisionWorkspace';
+import AdminPanelWorkspace from '../components/workspaces/AdminPanelWorkspace';
 import { CityInterventionWorkspace } from '../components/command-center/CityInterventionWorkspace';
 import { CityGovernanceWorkspace } from '../components/command-center/CityGovernanceWorkspace';
 import { CityHumanCommandWorkspace } from '../components/command-center/CityHumanCommandWorkspace';
@@ -45,7 +46,9 @@ const pageVariants = {
 };
 
 export default function EarthMindApp() {
-  const { activeTab, contextPanelOpen, isReportModalOpen, closeReportModal, selectedIncident } = useAppStore();
+  const { activeTab, contextPanelOpen, isReportModalOpen, closeReportModal, selectedIncident, adminPanelAccessIds, currentUser } = useAppStore();
+
+  const hasAdminAccess = adminPanelAccessIds.includes(currentUser?.id ?? '');
 
   const renderWorkspace = useMemo(() => {
     switch (activeTab) {
@@ -79,6 +82,25 @@ export default function EarthMindApp() {
       case 'audit':
       case 'audit-ledger':
         return <AuditHistory />;
+      case 'admin':
+      case 'admin-panel':
+      case 'administration':
+        if (!hasAdminAccess) {
+          return (
+            <div className="flex flex-col items-center justify-center h-full gap-4 text-center p-8">
+              <div className="text-5xl">🔒</div>
+              <h2 className="text-xl font-semibold text-gray-200">Access Restricted</h2>
+              <p className="text-gray-400 max-w-sm">
+                You do not have permission to access the Admin Panel.
+                Contact your system administrator to request access.
+              </p>
+              <span className="px-3 py-1 rounded-full bg-red-500/10 text-red-400 text-xs font-medium border border-red-500/20">
+                Insufficient Privileges
+              </span>
+            </div>
+          );
+        }
+        return <AdminPanelWorkspace />;
       case 'interventions':
       case 'intervention-planning':
       case 'city-interventions':
@@ -117,7 +139,7 @@ export default function EarthMindApp() {
       default:
         return <CityLiveIntelligenceWorkspace />;
     }
-  }, [activeTab]);
+  }, [activeTab, hasAdminAccess]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-[#0f1419] text-gray-200 font-sans antialiased">

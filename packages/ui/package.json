@@ -1,0 +1,8 @@
+{
+  "name": "@earthmind/ui",
+  "version": "1.0.0",
+  "description": "Design system and tokens for EarthMind PIOS platform",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true
+}

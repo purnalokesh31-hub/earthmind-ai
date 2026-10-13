@@ -123,6 +123,11 @@ interface AppState {
   transitionIncidentStage: (id: string, status: IncidentStatus) => void;
   dispatch: (incidentId: string, action: string) => void;
 
+  // Admin Panel Access Control (RBAC delegation)
+  adminPanelAccessIds: string[];
+  grantAdminAccess: (userId: string) => void;
+  revokeAdminAccess: (userId: string) => void;
+
   // Evidence & AI Vision Platform Slice
   evidenceList: EvidenceItem[];
   selectedEvidenceId: string | null;
@@ -815,6 +820,34 @@ export const useAppStore = create<AppState>()(
     return newIncId;
   },
 
+  // Admin Panel Access Control (RBAC delegation)
+  // Seeded with the two demo Administrator user IDs
+  adminPanelAccessIds: ['usr-1', 'usr-4'],
+  grantAdminAccess: (userId) => {
+    set((s) => ({
+      adminPanelAccessIds: s.adminPanelAccessIds.includes(userId)
+        ? s.adminPanelAccessIds
+        : [...s.adminPanelAccessIds, userId],
+    }));
+    get().logAuditEvent({
+      event: 'ADMIN_ACCESS_GRANTED',
+      actor: get().currentUser?.name || 'Administrator',
+      details: `Granted Admin Panel access to user ID ${userId}.`,
+    });
+    get().addToast({ title: 'Admin Access Granted', message: `User ${userId} now has Admin Panel access.`, type: 'success' });
+  },
+  revokeAdminAccess: (userId) => {
+    set((s) => ({
+      adminPanelAccessIds: s.adminPanelAccessIds.filter((id) => id !== userId),
+    }));
+    get().logAuditEvent({
+      event: 'ADMIN_ACCESS_REVOKED',
+      actor: get().currentUser?.name || 'Administrator',
+      details: `Revoked Admin Panel access from user ID ${userId}.`,
+    });
+    get().addToast({ title: 'Admin Access Revoked', message: `User ${userId} no longer has Admin Panel access.`, type: 'warning' });
+  },
+
   // Command Palette
   commandPaletteOpen: false,
   setCommandPaletteOpen: (open) => set({ commandPaletteOpen: open }),
@@ -829,6 +862,7 @@ export const useAppStore = create<AppState>()(
         isAuthenticated: state.isAuthenticated,
         currentUser: state.currentUser,
         auditLogs: state.auditLogs,
+        adminPanelAccessIds: state.adminPanelAccessIds,
       }),
     }
   )

@@ -9,13 +9,16 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 export default function Sidebar() {
   const {
     activeTab, setActiveTab, sidebarCollapsed, toggleSidebar,
-    currentUser, setActiveDomainWorkspace,
+    currentUser, setActiveDomainWorkspace, adminPanelAccessIds,
   } = useAppStore();
 
   const handleNavigate = (id: string) => {
     setActiveDomainWorkspace(null);
     setActiveTab(id);
   };
+
+  // IDs of nav items restricted to users in the admin access list
+  const ADMIN_ONLY_ITEMS = new Set(['admin']);
 
   return (
     <aside
@@ -31,6 +34,11 @@ export default function Sidebar() {
         </div>
 
         {NAV_ITEMS.map((item) => {
+          // RBAC: hide admin-only items from unauthorized users
+          if (ADMIN_ONLY_ITEMS.has(item.id) && !adminPanelAccessIds.includes(currentUser?.id ?? '')) {
+            return null;
+          }
+
           const active = activeTab === item.id;
 
           return (

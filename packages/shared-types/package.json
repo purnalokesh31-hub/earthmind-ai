@@ -1,0 +1,8 @@
+{
+  "name": "@earthmind/shared-types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript definitions and interfaces for EarthMind PIOS platform",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true
+}
