@@ -14,6 +14,7 @@ interface AppState {
   currentUser: User | null;
   login: (user: User) => void;
   logout: () => void;
+  updateCurrentUser: (updates: Partial<User>) => void;
 
   // Navigation
   activeTab: string;
@@ -147,6 +148,9 @@ export const useAppStore = create<AppState>()(
   currentUser: null,
   login: (user) => set({ isAuthenticated: true, currentUser: user }),
   logout: () => set({ isAuthenticated: false, currentUser: null }),
+  updateCurrentUser: (updates) => set((s) => ({
+    currentUser: s.currentUser ? { ...s.currentUser, ...updates } : null,
+  })),
 
   // Navigation
   activeTab: 'home',

@@ -7,27 +7,120 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAppStore } from '../../stores/app-store';
-import { DEMO_USERS } from '../../lib/demo-data';
 import { cn } from '../../lib/utils';
+import { 
+  User, 
+  Briefcase, 
+  Activity, 
+  Bell, 
+  Shield, 
+  Palette, 
+  CheckCircle2, 
+  Clock, 
+  AlertTriangle, 
+  ExternalLink,
+  MapPin,
+  Building,
+  KeyRound,
+  Check
+} from 'lucide-react';
 
 const SETTINGS_TABS = [
-  { id: 'profile',       label: 'Profile',       icon: '👤' },
-  { id: 'users',         label: 'Users',         icon: '👥' },
-  { id: 'notifications', label: 'Notifications', icon: '🔔' },
-  { id: 'security',      label: 'Security',      icon: '🔒' },
-  { id: 'appearance',    label: 'Appearance',    icon: '🎨' },
+  { id: 'profile',       label: 'My Profile',      icon: '👤' },
+  { id: 'assigned',      label: 'My Cases',        icon: '📋' },
+  { id: 'activity',      label: 'My Activity',     icon: '⚡' },
+  { id: 'notifications', label: 'Notifications',   icon: '🔔' },
+  { id: 'security',      label: 'Security & Auth', icon: '🔒' },
+  { id: 'appearance',    label: 'Appearance',      icon: '🎨' },
 ] as const;
 
 type SettingsTab = typeof SETTINGS_TABS[number]['id'];
 
 export default function SettingsPage() {
-  const { currentUser } = useAppStore();
+  const { 
+    currentUser, 
+    updateCurrentUser, 
+    incidents, 
+    auditLogs, 
+    addToast, 
+    logAuditEvent, 
+    setSelectedIncident, 
+    setActiveTab: setAppActiveTab 
+  } = useAppStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
 
-  // Notification prefs
+  // Profile Form State
+  const [formData, setFormData] = useState({
+    name: currentUser?.name || 'Officer Lokesh',
+    email: currentUser?.email || 'lokesh@earthmind.gov',
+    organization: currentUser?.organization || 'Municipal Administration',
+    department: currentUser?.department || 'Roads & Infrastructure',
+    region: currentUser?.region || 'Vijayawada',
+    phone: currentUser?.phone || '+91 98480 22334',
+  });
+
+  // Password / Security Form
+  const [passwords, setPasswords] = useState({
+    current: '',
+    newPass: '',
+    confirmPass: '',
+  });
+
+  // Notification preferences
   const [pushAlerts, setPushAlerts] = useState(true);
   const [smsAlerts, setSmsAlerts] = useState(true);
   const [emailDigest, setEmailDigest] = useState(true);
+
+  // Filter incidents assigned to or reported by current user
+  const myIncidents = incidents.filter(
+    (inc) =>
+      inc.assignedTo?.toLowerCase().includes(currentUser?.name.toLowerCase() || '') ||
+      inc.reportedBy?.toLowerCase().includes(currentUser?.name.toLowerCase() || '') ||
+      inc.department?.toLowerCase() === currentUser?.department.toLowerCase()
+  );
+
+  // Personal audit activity
+  const myAuditLogs = auditLogs.filter(
+    (log) => log.actor?.toLowerCase().includes(currentUser?.name.toLowerCase() || '')
+  );
+
+  const handleProfileSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    updateCurrentUser(formData);
+    logAuditEvent({
+      event: 'USER_PROFILE_UPDATED',
+      actor: currentUser?.name || 'Operator',
+      details: `Operator updated profile contact details (${formData.name}, ${formData.email}).`,
+    });
+    addToast({
+      title: 'Profile Updated',
+      message: 'Your personal settings have been successfully saved.',
+      type: 'success',
+    });
+  };
+
+  const handlePasswordUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passwords.newPass || passwords.newPass !== passwords.confirmPass) {
+      addToast({
+        title: 'Validation Failed',
+        message: 'New password and confirmation must match.',
+        type: 'error',
+      });
+      return;
+    }
+    setPasswords({ current: '', newPass: '', confirmPass: '' });
+    logAuditEvent({
+      event: 'SECURITY_CREDENTIALS_UPDATED',
+      actor: currentUser?.name || 'Operator',
+      details: 'Operator updated authentication credentials / password.',
+    });
+    addToast({
+      title: 'Password Updated',
+      message: 'Your security password has been changed successfully.',
+      type: 'success',
+    });
+  };
 
   const Toggle = ({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) => (
     <button
@@ -52,8 +145,11 @@ export default function SettingsPage() {
       className="flex gap-5 max-w-5xl mx-auto w-full pb-20 lg:pb-0"
     >
       {/* ── Left: Tab Navigation ── */}
-      <div className="w-48 shrink-0 flex flex-col gap-1 hidden md:flex">
-        <h2 className="section-label mb-2">Settings</h2>
+      <div className="w-52 shrink-0 flex flex-col gap-1 hidden md:flex">
+        <div className="mb-3 px-3">
+          <h2 className="text-sm font-bold text-gray-200">User Panel</h2>
+          <p className="text-[11px] text-gray-500">Manage account & operational profile</p>
+        </div>
         {SETTINGS_TABS.map(tab => (
           <button
             key={tab.id}
@@ -61,8 +157,8 @@ export default function SettingsPage() {
             className={cn(
               'flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-left transition-all w-full',
               activeTab === tab.id
-                ? 'bg-earth-500/10 text-earth-400'
-                : 'text-slate-500 hover:text-slate-200 hover:bg-white/5'
+                ? 'bg-earth-500/10 text-earth-400 border-l-2 border-earth-500'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 border-l-2 border-transparent'
             )}
           >
             <span className="text-base">{tab.icon}</span>
@@ -74,7 +170,7 @@ export default function SettingsPage() {
       {/* ── Right: Content ── */}
       <div className="flex-1 min-w-0">
 
-        {/* Profile */}
+        {/* ── My Profile Tab ── */}
         {activeTab === 'profile' && (
           <motion.div
             key="profile"
@@ -82,118 +178,198 @@ export default function SettingsPage() {
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col gap-4"
           >
-            <h1 className="page-title">Profile</h1>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="page-title">Personal Profile</h1>
+                <p className="text-xs text-slate-400">View and update your operator credentials and contact preferences.</p>
+              </div>
+            </div>
 
             <div className="card p-5">
-              <div className="flex items-center gap-4 mb-6">
+              <div className="flex items-center gap-4 mb-6 pb-6 border-b border-border">
                 <div className="h-16 w-16 rounded-2xl bg-earth-500/20 border border-earth-500/40 flex items-center justify-center text-2xl font-black text-earth-400">
-                  {currentUser?.name[0] || 'U'}
+                  {currentUser?.name?.[0] || 'U'}
                 </div>
                 <div>
-                  <h2 className="text-lg font-bold">{currentUser?.name || 'Officer Lokesh'}</h2>
-                  <p className="text-[11px] text-slate-500">{currentUser?.email || 'lokesh@earthmind.gov'}</p>
-                  <p className="text-[10px] text-earth-400 font-bold uppercase mt-0.5">{currentUser?.role || 'Field Officer'}</p>
+                  <h2 className="text-lg font-bold text-gray-100">{currentUser?.name || 'Officer Lokesh'}</h2>
+                  <p className="text-[11px] text-slate-400">{currentUser?.email || 'lokesh@earthmind.gov'}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-earth-500/15 text-earth-400 border border-earth-500/30">
+                      {currentUser?.role || 'Field Officer'}
+                    </span>
+                    <span className="text-[10px] text-slate-500">• {currentUser?.region || 'Vijayawada'}</span>
+                  </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="section-label mb-1 block">Full Name</label>
-                  <input className="input" defaultValue={currentUser?.name || 'Officer Lokesh'} />
+              <form onSubmit={handleProfileSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="section-label mb-1 block">Full Name</label>
+                    <input 
+                      className="input w-full" 
+                      value={formData.name} 
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="section-label mb-1 block">Email Address</label>
+                    <input 
+                      type="email"
+                      className="input w-full" 
+                      value={formData.email} 
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="section-label mb-1 block">Organization</label>
+                    <input 
+                      className="input w-full" 
+                      value={formData.organization} 
+                      onChange={(e) => setFormData({ ...formData, organization: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="section-label mb-1 block">Department</label>
+                    <input 
+                      className="input w-full" 
+                      value={formData.department} 
+                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="section-label mb-1 block">Operational Region</label>
+                    <input 
+                      className="input w-full" 
+                      value={formData.region} 
+                      onChange={(e) => setFormData({ ...formData, region: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="section-label mb-1 block">Direct Phone Contact</label>
+                    <input 
+                      className="input w-full" 
+                      value={formData.phone} 
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="section-label mb-1 block">Email</label>
-                  <input className="input" defaultValue={currentUser?.email || 'lokesh@earthmind.gov'} />
-                </div>
-                <div>
-                  <label className="section-label mb-1 block">Organization</label>
-                  <input className="input" defaultValue={currentUser?.organization || 'Municipal Administration'} />
-                </div>
-                <div>
-                  <label className="section-label mb-1 block">Department</label>
-                  <input className="input" defaultValue={currentUser?.department || 'Roads & Infrastructure'} />
-                </div>
-                <div>
-                  <label className="section-label mb-1 block">Region</label>
-                  <input className="input" defaultValue={currentUser?.region || 'Vijayawada'} />
-                </div>
-                <div>
-                  <label className="section-label mb-1 block">Role</label>
-                  <select className="input" defaultValue={currentUser?.role || 'Field Officer'}>
-                    <option>Citizen</option>
-                    <option>Field Officer</option>
-                    <option>Department Officer</option>
-                    <option>Supervisor</option>
-                    <option>Environmental Analyst</option>
-                    <option>Administrator</option>
-                  </select>
-                </div>
-              </div>
 
-              <div className="flex gap-2 mt-5">
-                <button className="btn-primary">Save Changes</button>
-                <button className="btn-secondary">Cancel</button>
-              </div>
+                <div className="flex gap-2 pt-4">
+                  <button type="submit" className="btn-primary">Save Changes</button>
+                </div>
+              </form>
             </div>
           </motion.div>
         )}
 
-        {/* Users */}
-        {activeTab === 'users' && (
+        {/* ── My Assigned Cases Tab ── */}
+        {activeTab === 'assigned' && (
           <motion.div
-            key="users"
+            key="assigned"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             className="flex flex-col gap-4"
           >
-            <div className="flex items-center justify-between">
-              <h1 className="page-title">User Management</h1>
-              <button className="btn-primary">+ Add User</button>
+            <div>
+              <h1 className="page-title">My Assigned Cases & Field Tasks</h1>
+              <p className="text-xs text-slate-400">Incidents, investigations, and field responses directly associated with you.</p>
             </div>
 
-            <div className="card overflow-hidden">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-[9px] font-black uppercase tracking-widest text-slate-500 border-b border-border">
-                    <th className="px-4 py-3">Name</th>
-                    <th className="px-2 py-3">Email</th>
-                    <th className="px-2 py-3">Role</th>
-                    <th className="px-2 py-3">Department</th>
-                    <th className="px-2 py-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {DEMO_USERS.map((user, i) => (
-                    <motion.tr
-                      key={user.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="text-xs hover:bg-white/[0.02] transition cursor-pointer"
-                    >
-                      <td className="px-4 py-3">
+            <div className="grid grid-cols-1 gap-3">
+              {myIncidents.length === 0 ? (
+                <div className="card p-8 text-center text-slate-500">
+                  No cases are currently assigned directly to your account.
+                </div>
+              ) : (
+                myIncidents.map((inc) => (
+                  <div
+                    key={inc.id}
+                    className="card p-4 flex items-center justify-between hover:border-earth-500/40 transition cursor-pointer"
+                    onClick={() => {
+                      setSelectedIncident(inc);
+                      setAppActiveTab('incidents');
+                    }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-earth-500/10 border border-earth-500/20 flex items-center justify-center text-earth-400 shrink-0 mt-0.5">
+                        <Briefcase className="w-4 h-4" />
+                      </div>
+                      <div>
                         <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 rounded-full bg-earth-500/20 border border-earth-500/40 flex items-center justify-center text-[10px] font-black text-earth-400">
-                            {user.name[0]}
-                          </div>
-                          <span className="font-bold">{user.name}</span>
+                          <span className="text-xs font-bold text-white">{inc.id}</span>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-surface-2 text-slate-300 border border-white/5">
+                            {inc.category}
+                          </span>
                         </div>
-                      </td>
-                      <td className="px-2 py-3 text-slate-500 text-[10px]">{user.email}</td>
-                      <td className="px-2 py-3">
-                        <span className="badge-neutral">{user.role}</span>
-                      </td>
-                      <td className="px-2 py-3 text-slate-500 text-[10px]">{user.department || '—'}</td>
-                      <td className="px-2 py-3">
-                        <span className="flex items-center gap-1.5">
-                          <span className="status-dot-active" />
-                          <span className="text-[10px] font-bold text-earth-400">Active</span>
-                        </span>
-                      </td>
-                    </motion.tr>
-                  ))}
-                </tbody>
-              </table>
+                        <h4 className="text-sm font-semibold text-gray-200 mt-1">{inc.title}</h4>
+                        <div className="flex items-center gap-4 text-[11px] text-slate-400 mt-1">
+                          <span className="flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-slate-500" />
+                            {inc.location.name}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-500" />
+                            {inc.reportedAt.slice(0, 10)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <span className={cn(
+                        'text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider',
+                        inc.severity === 'critical' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                        inc.severity === 'high' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
+                        'bg-blue-500/20 text-blue-400 border border-blue-500/30'
+                      )}>
+                        {inc.severity}
+                      </span>
+                      <ExternalLink className="w-4 h-4 text-slate-500" />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── My Personal Activity Tab ── */}
+        {activeTab === 'activity' && (
+          <motion.div
+            key="activity"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col gap-4"
+          >
+            <div>
+              <h1 className="page-title">My Action History</h1>
+              <p className="text-xs text-slate-400">Chronological ledger of operational decisions made by your operator profile.</p>
+            </div>
+
+            <div className="card p-5">
+              <div className="space-y-4">
+                {myAuditLogs.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-6">No recent actions recorded for your session yet.</p>
+                ) : (
+                  myAuditLogs.slice(0, 15).map((log) => (
+                    <div key={log.id} className="flex items-start gap-3 pb-3 border-b border-border last:border-0">
+                      <div className="h-7 w-7 rounded-lg bg-earth-500/10 border border-earth-500/30 flex items-center justify-center text-earth-400 shrink-0 mt-0.5">
+                        <Activity className="w-3.5 h-3.5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold text-gray-200">{log.event}</p>
+                          <span className="text-[10px] text-slate-500">{new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-400 mt-0.5">{log.details}</p>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </motion.div>
         )}
@@ -237,19 +413,42 @@ export default function SettingsPage() {
             <h1 className="page-title">Security</h1>
 
             <div className="card p-5 flex flex-col gap-4">
-              <div>
-                <label className="section-label mb-1 block">Current Password</label>
-                <input type="password" className="input max-w-md" placeholder="Enter current password" />
-              </div>
-              <div>
-                <label className="section-label mb-1 block">New Password</label>
-                <input type="password" className="input max-w-md" placeholder="Enter new password" />
-              </div>
-              <div>
-                <label className="section-label mb-1 block">Confirm Password</label>
-                <input type="password" className="input max-w-md" placeholder="Confirm new password" />
-              </div>
-              <button className="btn-primary w-fit mt-2">Update Password</button>
+              <form onSubmit={handlePasswordUpdate} className="flex flex-col gap-4">
+                <div>
+                  <label className="section-label mb-1 block">Current Password</label>
+                  <input 
+                    type="password" 
+                    className="input max-w-md w-full" 
+                    placeholder="Enter current password" 
+                    value={passwords.current}
+                    onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="section-label mb-1 block">New Password</label>
+                  <input 
+                    type="password" 
+                    className="input max-w-md w-full" 
+                    placeholder="Enter new password" 
+                    value={passwords.newPass}
+                    onChange={(e) => setPasswords({ ...passwords, newPass: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="section-label mb-1 block">Confirm Password</label>
+                  <input 
+                    type="password" 
+                    className="input max-w-md w-full" 
+                    placeholder="Confirm new password" 
+                    value={passwords.confirmPass}
+                    onChange={(e) => setPasswords({ ...passwords, confirmPass: e.target.value })}
+                    required
+                  />
+                </div>
+                <button type="submit" className="btn-primary w-fit mt-2">Update Password</button>
+              </form>
             </div>
 
             <div className="card p-5">

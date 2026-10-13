@@ -275,7 +275,7 @@ export const NAV_ITEMS: any[] = [
   { id: 'admin', label: 'Admin Panel', icon: '🔐' },
   { id: 'ai', label: 'AI Assistant', icon: '🤖' },
   { id: 'reports', label: 'Reports', icon: '📄' },
-  { id: 'settings', label: 'Settings', icon: '⚙️' }
+  { id: 'settings', label: 'User Panel', icon: '👤' }
 ];
 
 export const HEALTH_SCORES: any[] = [

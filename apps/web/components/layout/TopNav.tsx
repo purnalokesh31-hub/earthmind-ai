@@ -223,7 +223,7 @@ export default function TopNav() {
                   <div className="p-1">
                     <button onClick={() => { handleNavigate('settings'); setProfileOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-gray-400 hover:text-gray-200 hover:bg-white/5 rounded-lg transition flex items-center gap-2">
                       <Settings className="w-3.5 h-3.5" />
-                      Settings
+                      User Panel
                     </button>
                     <button onClick={() => { logout(); setProfileOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-950/20 rounded-lg transition flex items-center gap-2">
                       <LogOut className="w-3.5 h-3.5" />
