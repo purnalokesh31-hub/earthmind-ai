@@ -3,7 +3,8 @@
 // Pure Data Access Layer (Zero Business Logic)
 // ──────────────────────────────────────────────────────────────
 
-import { PrismaClient, IncidentStatus as PrismaStatus, Severity as PrismaSeverity } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { IncidentStatus as PrismaStatus, Severity as PrismaSeverity } from '../database/enums';
 import { prisma as defaultPrisma } from '../database/prisma';
 import type { IBaseRepository, FindAllOptions, PaginatedResult } from './base.repository';
 

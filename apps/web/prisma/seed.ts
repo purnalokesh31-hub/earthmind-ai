@@ -3,8 +3,57 @@
 // Vijayawada Metropolitan Sector Municipal Telemetry Dataset
 // ──────────────────────────────────────────────────────────────
 
-import { PrismaClient, RoleType, Severity, IncidentStatus, EvidenceFileType, EvidenceStatus, TelemetryType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+
+const RoleType = {
+  SYSTEM_ADMIN: 'SYSTEM_ADMIN',
+  COMMANDER: 'COMMANDER',
+  FIELD_OFFICER: 'FIELD_OFFICER',
+  ANALYST: 'ANALYST',
+  SUPERVISOR: 'SUPERVISOR',
+  CITIZEN: 'CITIZEN',
+};
+
+const Severity = {
+  LOW: 'LOW',
+  MEDIUM: 'MEDIUM',
+  HIGH: 'HIGH',
+  CRITICAL: 'CRITICAL',
+};
+
+const IncidentStatus = {
+  REPORTED: 'REPORTED',
+  IN_TRIAGE: 'IN_TRIAGE',
+  ASSIGNED: 'ASSIGNED',
+  IN_PROGRESS: 'IN_PROGRESS',
+  CONTAINED: 'CONTAINED',
+  RESOLVED: 'RESOLVED',
+  CLOSED: 'CLOSED',
+};
+
+const EvidenceFileType = {
+  IMAGE: 'IMAGE',
+  VIDEO: 'VIDEO',
+  AUDIO: 'AUDIO',
+  DOCUMENT: 'DOCUMENT',
+  SENSOR_LOG: 'SENSOR_LOG',
+};
+
+const EvidenceStatus = {
+  PENDING_ANALYSIS: 'PENDING_ANALYSIS',
+  ANALYZED: 'ANALYZED',
+  REJECTED: 'REJECTED',
+};
+
+const TelemetryType = {
+  WATER_LEVEL: 'WATER_LEVEL',
+  AIR_QUALITY: 'AIR_QUALITY',
+  SOIL_MOISTURE: 'SOIL_MOISTURE',
+  TRAFFIC_FLOW: 'TRAFFIC_FLOW',
+  GRID_LOAD: 'GRID_LOAD',
+  WEATHER: 'WEATHER',
+};
 
 const prisma = new PrismaClient();
 

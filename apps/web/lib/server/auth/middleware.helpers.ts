@@ -4,7 +4,7 @@
 // ──────────────────────────────────────────────────────────────
 
 import { NextRequest } from 'next/server';
-import { RoleType } from '@prisma/client';
+import { RoleType } from './permissions';
 import { authMiddleware, AuthenticatedUserContext } from './auth.middleware';
 import { RbacGuard } from './rbac.guard';
 import { PermissionResource, PermissionAction } from './permissions';

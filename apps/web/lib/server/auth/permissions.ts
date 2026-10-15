@@ -3,7 +3,8 @@
 // Declarative resource & action level permission mapping across 7 roles
 // ──────────────────────────────────────────────────────────────
 
-import { RoleType } from '@prisma/client';
+import { RoleType } from '../database/enums';
+export { RoleType };
 
 export type PermissionResource =
   | 'INCIDENT'

@@ -4,7 +4,8 @@
 // Workload-based Reassignment, and Dispatch History
 // ──────────────────────────────────────────────────────────────
 
-import { PrismaClient, IncidentStatus as PrismaStatus, RoleType } from '@prisma/client';
+import { PrismaClient } from '@prisma/client';
+import { IncidentStatus as PrismaStatus, RoleType } from '../database/enums';
 import { prisma as defaultPrisma } from '../database/prisma';
 import type { IIncidentRepository } from '../repositories/incident.repository';
 import type { IAuditRepository } from '../repositories/audit.repository';

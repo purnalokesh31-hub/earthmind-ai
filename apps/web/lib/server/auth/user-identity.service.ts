@@ -3,7 +3,7 @@
 // Aggregates user profile, department, assigned incidents, role permissions, & activity history
 // ──────────────────────────────────────────────────────────────
 
-import { RoleType } from '@prisma/client';
+import { RoleType } from './permissions';
 import { AuthenticatedUserContext } from './auth.middleware';
 import { PERMISSION_MATRIX, PermissionResource, PermissionAction } from './permissions';
 import { IUserRepository } from '../repositories/user.repository';

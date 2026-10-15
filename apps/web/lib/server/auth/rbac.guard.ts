@@ -3,7 +3,7 @@
 // Enforces role permissions and resource-level access rules across 7 enterprise roles
 // ──────────────────────────────────────────────────────────────
 
-import { RoleType } from '@prisma/client';
+import { RoleType } from './permissions';
 import { AuthenticatedUserContext } from './auth.middleware';
 import { PermissionResource, PermissionAction, hasResourcePermission } from './permissions';
 import { ForbiddenError } from '../errors';
