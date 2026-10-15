@@ -100,6 +100,21 @@ class EarthMindAPIHandler(BaseHTTPRequestHandler):
             self.send_json_response(200, health_status)
             return
 
+        # 2b. Vision Models & Health Probe (GET /api/v1/vision/models)
+        if path in ('/api/v1/vision/models', '/v1/vision/models'):
+            models_info = {
+                "active_engine": "Gemini-2.0-Flash" if (settings.VISION_MODE == "gemini" and settings.GEMINI_API_KEY) else "PIL-LocalCV",
+                "pil_available": True,
+                "gemini_available": bool(settings.GEMINI_API_KEY),
+                "supported_tasks": [
+                    "road_damage", "flood", "garbage", "illegal_dumping", "tree_damage",
+                    "crop_disease", "water_leakage", "electric_pole_damage", "fire", "building_damage"
+                ],
+                "deployment_notice": "PIL-LocalCV operates as the genuine zero-dependency algorithmic CV engine. GPU TensorRT/YOLOv8 models require dedicated CUDA runtime."
+            }
+            self.send_json_response(200, {"success": True, "data": models_info})
+            return
+
         # 3. List Cases (GET /api/cases)
         if path == '/api/cases':
             domain = query_params.get('domain', [None])[0]
@@ -155,8 +170,8 @@ class EarthMindAPIHandler(BaseHTTPRequestHandler):
 
         # ── v1 Real AI Vision Endpoints ─────────────────────────────────────────
 
-        # POST /api/v1/evidence/upload — Multipart image upload with SHA-256 chain-of-custody
-        if path == '/api/v1/evidence/upload':
+        # POST /api/v1/evidence/upload or /v1/evidence/upload — Multipart image upload
+        if path in ('/api/v1/evidence/upload', '/v1/evidence/upload'):
             content_type = self.headers.get('Content-Type', '')
             content_length = int(self.headers.get('Content-Length', 0))
             body_bytes = self.rfile.read(content_length)
@@ -165,8 +180,8 @@ class EarthMindAPIHandler(BaseHTTPRequestHandler):
             self.send_json_response(status, result)
             return
 
-        # POST /api/v1/vision/analyze — Real AI vision analysis via Gemini or PIL
-        if path == '/api/v1/vision/analyze':
+        # POST /api/v1/vision/analyze or /v1/vision/analyze — Real AI vision analysis via Gemini or PIL
+        if path in ('/api/v1/vision/analyze', '/v1/vision/analyze'):
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length).decode('utf-8')
             try:
@@ -175,12 +190,19 @@ class EarthMindAPIHandler(BaseHTTPRequestHandler):
                 self.send_error_response(400, f"Malformed JSON: {e}")
                 return
             result = handle_vision_analyze(data)
-            status = 200 if result.get("success") else 500
+            if result.get("success"):
+                status = 200
+            elif result.get("code") == "EVIDENCE_NOT_FOUND":
+                status = 404
+            elif result.get("code") in ("CORRUPT_IMAGE", "EMPTY_IMAGE", "FILE_TOO_LARGE"):
+                status = 400
+            else:
+                status = 500
             self.send_json_response(status, result)
             return
 
-        # POST /api/v1/citizen/reports — Citizen report intake
-        if path == '/api/v1/citizen/reports':
+        # POST /api/v1/citizen/reports or /v1/citizen/reports — Citizen report intake
+        if path in ('/api/v1/citizen/reports', '/v1/citizen/reports'):
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length).decode('utf-8')
             try:

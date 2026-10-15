@@ -48,6 +48,7 @@ export default function SettingsPage() {
     setActiveTab: setAppActiveTab 
   } = useAppStore();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
+  const [theme, setTheme] = useState<'dark' | 'emerald' | 'light'>('dark');
 
   // Profile Form State
   const [formData, setFormData] = useState({
@@ -483,22 +484,39 @@ export default function SettingsPage() {
               <h3 className="text-xs font-black uppercase tracking-wider mb-3">Theme</h3>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { id: 'dark', label: 'Dark', icon: '🌙', desc: 'Default dark theme', active: true },
-                  { id: 'emerald', label: 'Emerald', icon: '🌿', desc: 'Dark with emerald accent', active: false },
-                  { id: 'light', label: 'Light', icon: '☀️', desc: 'Light theme', active: false },
-                ].map(t => (
-                  <button
-                    key={t.id}
-                    className={cn(
-                      'p-4 rounded-xl border text-center transition-all',
-                      t.active ? 'border-earth-500 bg-earth-950/20' : 'border-border hover:border-earth-500/30'
-                    )}
-                  >
-                    <span className="text-2xl">{t.icon}</span>
-                    <p className="text-xs font-bold mt-2">{t.label}</p>
-                    <p className="text-[9px] text-slate-500 mt-0.5">{t.desc}</p>
-                  </button>
-                ))}
+                  { id: 'dark', label: 'Dark', icon: '🌙', desc: 'Default dark theme' },
+                  { id: 'emerald', label: 'Emerald', icon: '🌿', desc: 'Dark with emerald accent' },
+                  { id: 'light', label: 'Light', icon: '☀️', desc: 'Light theme' },
+                ].map(t => {
+                  const isActive = theme === t.id;
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => {
+                        setTheme(t.id as any);
+                        addToast({
+                          title: 'Theme Updated',
+                          message: `Applied ${t.label} palette across operational shell.`,
+                          type: 'info',
+                        });
+                      }}
+                      className={cn(
+                        'p-4 rounded-xl border text-center transition-all cursor-pointer',
+                        isActive ? 'border-cyan-500 bg-cyan-950/20 shadow-[0_0_15px_rgba(6,182,212,0.15)]' : 'border-white/10 hover:border-cyan-500/40 bg-white/5'
+                      )}
+                    >
+                      <span className="text-2xl">{t.icon}</span>
+                      <p className="text-xs font-bold mt-2 text-slate-100">{t.label}</p>
+                      <p className="text-[9px] text-slate-400 mt-0.5">{t.desc}</p>
+                      {isActive && (
+                        <span className="inline-block mt-2 text-[9px] font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20">
+                          Active
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </motion.div>

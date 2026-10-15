@@ -265,7 +265,8 @@ export const AI_RECOMMENDATIONS: any[] = [
 ];
 
 export const NAV_ITEMS: any[] = [
-  { id: 'home', label: 'Command Center', icon: '🏠' },
+  { id: 'home', label: 'Mission Control', icon: '🌍' },
+  { id: 'live-command', label: 'Live Command', icon: '🏛️' },
   { id: 'incidents', label: 'Incidents', icon: '🚨' },
   { id: 'evidence', label: 'Evidence AI', icon: '👁️' },
   { id: 'cv-studio', label: 'Vision Studio', icon: '⚡' },

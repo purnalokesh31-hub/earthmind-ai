@@ -23,8 +23,53 @@ export default function InsightsPage() {
   const [activeTab, setActiveTab] = useState<InsightTab>('Overview');
   const [timeframe, setTimeframe] = useState('30d');
   const { incidents } = useAppStore();
-  const kpis = generateInsights(incidents)[activeTab as keyof ReturnType<typeof generateInsights>] || [];
-  const bars = CHART_BARS[activeTab];
+
+  const filteredIncidents = React.useMemo(() => {
+    const now = Date.now();
+    const daysMap: Record<string, number> = {
+      '7d': 7,
+      '30d': 30,
+      '90d': 90,
+      'yr': 365,
+    };
+    const days = daysMap[timeframe] || 30;
+    const cutoff = now - days * 24 * 60 * 60 * 1000;
+    const filtered = incidents.filter((inc) => {
+      const incDate = inc.createdAt
+        ? new Date(inc.createdAt).getTime()
+        : (inc.reportedAt ? new Date(inc.reportedAt).getTime() : now);
+      return incDate >= cutoff;
+    });
+    return filtered.length > 0 ? filtered : incidents;
+  }, [incidents, timeframe]);
+
+  const kpis = generateInsights(filteredIncidents)[activeTab as keyof ReturnType<typeof generateInsights>] || [];
+
+  const { bars, labels } = React.useMemo(() => {
+    const raw = CHART_BARS[activeTab] || [50, 60, 70, 80];
+    if (timeframe === '7d') {
+      return {
+        bars: raw.slice(-7),
+        labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].slice(-raw.slice(-7).length),
+      };
+    }
+    if (timeframe === '30d') {
+      return {
+        bars: raw.slice(-4),
+        labels: ['W1', 'W2', 'W3', 'W4'],
+      };
+    }
+    if (timeframe === '90d') {
+      return {
+        bars: raw.slice(-6),
+        labels: ['Month -2', 'Month -1', 'Current Month', 'Week 1', 'Week 2', 'Week 3'].slice(0, 6),
+      };
+    }
+    return {
+      bars: raw,
+      labels: CHART_LABELS,
+    };
+  }, [activeTab, timeframe]);
 
   return (
     <motion.div
@@ -85,8 +130,8 @@ export default function InsightsPage() {
 
             {/* Bars */}
             {bars.map((val, i) => {
-              const barWidth = 30;
-              const gap = (600 - 12 * barWidth) / 13;
+              const barWidth = Math.min(36, 480 / (bars.length || 1));
+              const gap = (600 - bars.length * barWidth) / (bars.length + 1);
               const x = gap + i * (barWidth + gap);
               const height = val * 1.8;
               return (
@@ -115,7 +160,7 @@ export default function InsightsPage() {
           </svg>
 
           <div className="flex justify-between px-2 mt-2">
-            {CHART_LABELS.map(label => (
+            {labels.map(label => (
               <span key={label} className="text-[8px] text-slate-500 font-mono">{label}</span>
             ))}
           </div>

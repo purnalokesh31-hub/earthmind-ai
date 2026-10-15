@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { RoleType } from '@prisma/client';
+import { RoleType } from '../../lib/server/auth/permissions';
 import { RbacGuard, hasPermission, hasResourcePermission } from '../../lib/server/auth';
 import { ForbiddenError } from '../../lib/server/errors';
 

@@ -11,7 +11,35 @@ except ImportError:
     h3 = None
 from apps.api.app.core.config import settings
 
-DB_FILE = "./earthmind.db"
+def _resolve_default_db_file():
+    root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+    db_url = os.environ.get("DATABASE_URL") or getattr(settings, "DATABASE_URL", "sqlite:///./earthmind.db")
+    
+    # If explicitly customized to a non-default path (e.g. tests)
+    if db_url and db_url not in ("sqlite:///./earthmind.db", "sqlite:///./dev.db"):
+        if db_url.startswith("sqlite:///"):
+            path = db_url[len("sqlite:///"): ]
+        elif db_url.startswith("file:"):
+            path = db_url[len("file:"): ]
+        else:
+            path = db_url
+        if os.path.isabs(path):
+            return path
+        candidate = os.path.join(root_dir, path.lstrip("./\\"))
+        if os.path.exists(candidate):
+            return candidate
+        return path
+
+    # Authoritative Next.js Prisma SQLite database
+    prisma_db = os.path.join(root_dir, "apps", "web", "prisma", "earthmind.db")
+    if os.path.exists(prisma_db):
+        return prisma_db
+
+    # Fallback to root database
+    candidate = os.path.join(root_dir, "earthmind.db")
+    return candidate
+
+DB_FILE = _resolve_default_db_file()
 
 def get_db_connection():
     conn = sqlite3.connect(DB_FILE)
@@ -425,15 +453,96 @@ def save_case(data: dict) -> dict:
         weather, geo, detections, explanation, rec, data.get("report_status", "none"), data.get("version", 1),
         data.get("created_at"), data.get("updated_at")
     ))
+    _sync_case_to_incident(cursor, data)
     conn.commit()
     conn.close()
     return data
+
+def _sync_case_to_incident(cursor, data: dict):
+    """Synchronizes a Python Case entity into the Prisma Incidents table if present in DB."""
+    if not data or not isinstance(data, dict):
+        return
+    try:
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='incidents';")
+        if not cursor.fetchone():
+            return
+        
+        c_id = data.get("case_id") or str(uuid.uuid4())
+        inc_code = data.get("client_uuid") or c_id
+        title = data.get("title") or "Unnamed Incident"
+        desc = data.get("description") or "Auto-synced from Python intelligence engine."
+        cat = (data.get("domain") or data.get("category") or "INFRASTRUCTURE").upper()
+        raw_sev = str(data.get("severity", "medium")).upper()
+        sev = raw_sev if raw_sev in ["CRITICAL", "HIGH", "MEDIUM", "LOW"] else "MEDIUM"
+        
+        status_map = {
+            "pending_sync": "REPORTED",
+            "local_only": "REPORTED",
+            "analyzed": "IN_PROGRESS",
+            "closed": "RESOLVED",
+            "resolved": "RESOLVED",
+        }
+        st = status_map.get(str(data.get("status", "")).lower(), "ACTIVE")
+        dept = str(data.get("domain", "Infrastructure Intelligence")).capitalize()
+        risk = float(data.get("risk_score") or 50.0)
+        loc = data.get("location_text") or "Vijayawada Municipal Area"
+        lat = float(data.get("latitude")) if data.get("latitude") is not None else 16.5062
+        lng = float(data.get("longitude")) if data.get("longitude") is not None else 80.6480
+        created = data.get("created_at") or datetime.datetime.now(datetime.timezone.utc).isoformat()
+        updated = data.get("updated_at") or datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+        cursor.execute("""
+        INSERT INTO incidents (
+            id, incidentCode, title, description, category, severity, status,
+            department, riskScore, locationName, latitude, longitude, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            description = excluded.description,
+            severity = excluded.severity,
+            status = excluded.status,
+            riskScore = excluded.riskScore,
+            updatedAt = excluded.updatedAt;
+        """, (
+            c_id, inc_code, title, desc, cat, sev, st,
+            dept, risk, loc, lat, lng, created, updated
+        ))
+    except Exception:
+        pass
 
 def get_case(case_id: str) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM cases WHERE case_id = ?", (case_id,))
     row = cursor.fetchone()
+    
+    if not row:
+        # Check incidents table by id or incidentCode
+        try:
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='incidents';")
+            if cursor.fetchone():
+                cursor.execute("SELECT * FROM incidents WHERE id = ? OR incidentCode = ?", (case_id, case_id))
+                inc = cursor.fetchone()
+                if inc:
+                    cat_val = str(inc["category"] or "infrastructure").lower()
+                    cursor.execute("""
+                    INSERT OR IGNORE INTO cases (
+                        case_id, client_uuid, domain, category, title, description,
+                        status, sync_status, severity, confidence, risk_score, earth_score_delta,
+                        latitude, longitude, location_text, report_status, version, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, 'analyzed', 'synced', ?, 0.90, ?, 10.0, ?, ?, ?, 'ready', 1, ?, ?)
+                    """, (
+                        inc["id"], inc["incidentCode"], cat_val, cat_val, inc["title"], inc["description"],
+                        str(inc["severity"]).lower(), float(inc["riskScore"] or 50.0),
+                        inc["latitude"] or 16.5062, inc["longitude"] or 80.6480, inc["locationName"],
+                        str(inc["createdAt"]), str(inc["updatedAt"])
+                    ))
+                    conn.commit()
+                    cursor.execute("SELECT * FROM cases WHERE case_id = ?", (inc["id"],))
+                    row = cursor.fetchone()
+        except Exception:
+            pass
+            
     conn.close()
     if not row:
         return None
@@ -471,14 +580,47 @@ def update_case(case_id: str, updates: dict) -> dict:
     values.append(case_id)
     sql = f"UPDATE cases SET {', '.join(query_parts)} WHERE case_id = ?"
     cursor.execute(sql, values)
+    
+    # Sync updated state to incidents
+    updated_data = get_case(case_id)
+    if updated_data:
+        _sync_case_to_incident(cursor, updated_data)
+        
     conn.commit()
     conn.close()
-    return get_case(case_id)
+    return updated_data
 
 def list_cases(domain: str = None, status: str = None) -> list:
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # Check if incidents table exists and sync any incidents missing from cases
+    try:
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='incidents';")
+        if cursor.fetchone():
+            cursor.execute("SELECT id, incidentCode, title, description, category, severity, status, department, riskScore, locationName, latitude, longitude, createdAt, updatedAt FROM incidents WHERE deletedAt IS NULL")
+            inc_rows = cursor.fetchall()
+            for inc in inc_rows:
+                cursor.execute("SELECT case_id FROM cases WHERE case_id = ?", (inc["id"],))
+                if not cursor.fetchone():
+                    cat_val = str(inc["category"] or "infrastructure").lower()
+                    cursor.execute("""
+                    INSERT OR IGNORE INTO cases (
+                        case_id, client_uuid, domain, category, title, description,
+                        status, sync_status, severity, confidence, risk_score, earth_score_delta,
+                        latitude, longitude, location_text, report_status, version, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'synced', ?, 0.90, ?, 10.0, ?, ?, ?, 'ready', 1, ?, ?)
+                    """, (
+                        inc["id"], inc["incidentCode"], cat_val, cat_val, inc["title"], inc["description"],
+                        "analyzed" if str(inc["status"]).upper() in ["ACTIVE", "IN_PROGRESS", "RESOLVED"] else "pending_sync",
+                        str(inc["severity"]).lower(), float(inc["riskScore"] or 50.0),
+                        inc["latitude"] or 16.5062, inc["longitude"] or 80.6480, inc["locationName"],
+                        str(inc["createdAt"]), str(inc["updatedAt"])
+                    ))
+            conn.commit()
+    except Exception:
+        pass
+
     sql = "SELECT * FROM cases"
     params = []
     filters = []
@@ -550,27 +692,48 @@ def row_to_dict(row) -> dict:
                 d[json_field] = {} if json_field != "detections" else []
     return d
 
+def _get_user_cols(cursor):
+    cursor.execute("PRAGMA table_info(users);")
+    return {row[1] for row in cursor.fetchall()}
+
 def save_user(user_data: dict) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor()
     user_id = user_data.get("id") or f"usr-{uuid.uuid4().hex[:8]}"
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    cols = _get_user_cols(cursor)
     
-    cursor.execute("""
-    INSERT OR REPLACE INTO users (id, name, email, password_hash, role, organization, department, region, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        user_id,
-        user_data.get("name", "New User"),
-        user_data.get("email", "").strip().lower(),
-        user_data.get("password", "EarthMind@2026"),
-        user_data.get("role", "Field Officer"),
-        user_data.get("organization", "Government"),
-        user_data.get("department", "Roads & Infrastructure"),
-        user_data.get("region", "Vijayawada"),
-        user_data.get("status", "active"),
-        now
-    ))
+    if "fullName" in cols:
+        is_active = 1 if user_data.get("status", "active") == "active" else 0
+        cursor.execute("""
+        INSERT OR REPLACE INTO users (id, email, passwordHash, fullName, role, isActive, createdAt, updatedAt)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user_id,
+            user_data.get("email", "").strip().lower(),
+            user_data.get("password", "EarthMind@2026"),
+            user_data.get("name", "New User"),
+            user_data.get("role", "Field Officer"),
+            is_active,
+            now,
+            now
+        ))
+    else:
+        cursor.execute("""
+        INSERT OR REPLACE INTO users (id, name, email, password_hash, role, organization, department, region, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            user_id,
+            user_data.get("name", "New User"),
+            user_data.get("email", "").strip().lower(),
+            user_data.get("password", "EarthMind@2026"),
+            user_data.get("role", "Field Officer"),
+            user_data.get("organization", "Government"),
+            user_data.get("department", "Roads & Infrastructure"),
+            user_data.get("region", "Vijayawada"),
+            user_data.get("status", "active"),
+            now
+        ))
     conn.commit()
     conn.close()
     return get_user_by_email(user_data.get("email", ""))
@@ -578,7 +741,18 @@ def save_user(user_data: dict) -> dict:
 def get_user_by_email(email: str) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email.strip(),))
+    cols = _get_user_cols(cursor)
+    if "fullName" in cols:
+        cursor.execute("""
+        SELECT id, fullName as name, email, passwordHash as password_hash, role,
+               'Government' as organization, COALESCE(departmentId, 'General') as department,
+               'Vijayawada' as region,
+               CASE WHEN isActive=1 THEN 'active' ELSE 'revoked' END as status,
+               createdAt as created_at
+        FROM users WHERE LOWER(email) = LOWER(?)
+        """, (email.strip(),))
+    else:
+        cursor.execute("SELECT * FROM users WHERE LOWER(email) = LOWER(?)", (email.strip(),))
     row = cursor.fetchone()
     conn.close()
     if row:
@@ -588,7 +762,17 @@ def get_user_by_email(email: str) -> dict:
 def list_users() -> list:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name, email, role, organization, department, region, status, created_at FROM users ORDER BY created_at DESC")
+    cols = _get_user_cols(cursor)
+    if "fullName" in cols:
+        cursor.execute("""
+        SELECT id, fullName as name, email, role, 'Government' as organization,
+               COALESCE(departmentId, 'General') as department, 'Vijayawada' as region,
+               CASE WHEN isActive=1 THEN 'active' ELSE 'revoked' END as status,
+               createdAt as created_at
+        FROM users ORDER BY createdAt DESC
+        """)
+    else:
+        cursor.execute("SELECT id, name, email, role, organization, department, region, status, created_at FROM users ORDER BY created_at DESC")
     rows = cursor.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -596,9 +780,29 @@ def list_users() -> list:
 def update_user_status(user_id: str, new_status: str) -> dict:
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE users SET status = ? WHERE id = ?", (new_status, user_id))
+    cols = _get_user_cols(cursor)
+    if "fullName" in cols:
+        is_active = 1 if new_status == "active" else 0
+        cursor.execute("UPDATE users SET isActive = ? WHERE id = ?", (is_active, user_id))
+    else:
+        cursor.execute("UPDATE users SET status = ? WHERE id = ?", (new_status, user_id))
     conn.commit()
-    cursor.execute("SELECT id, name, email, role, organization, department, region, status, created_at FROM users WHERE id = ?", (user_id,))
+    conn.close()
+    
+    # Re-fetch updated user
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cols = _get_user_cols(cursor)
+    if "fullName" in cols:
+        cursor.execute("""
+        SELECT id, fullName as name, email, role, 'Government' as organization,
+               COALESCE(departmentId, 'General') as department, 'Vijayawada' as region,
+               CASE WHEN isActive=1 THEN 'active' ELSE 'revoked' END as status,
+               createdAt as created_at
+        FROM users WHERE id = ?
+        """, (user_id,))
+    else:
+        cursor.execute("SELECT id, name, email, role, organization, department, region, status, created_at FROM users WHERE id = ?", (user_id,))
     row = cursor.fetchone()
     conn.close()
     if row:

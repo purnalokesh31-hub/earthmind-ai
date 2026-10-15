@@ -50,7 +50,12 @@ export interface IAIVisionEngineService {
 }
 
 export class EnterpriseAIVisionEngineService implements IAIVisionEngineService {
-  private readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  private _getUrl(path: string): string {
+    const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const base = raw.replace(/\/api\/v1\/?$/, '').replace(/\/api\/?$/, '').replace(/\/+$/, '');
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${base}${cleanPath}`;
+  }
 
   /**
    * Uploads a file to the backend and runs real AI vision analysis.
@@ -73,7 +78,7 @@ export class EnterpriseAIVisionEngineService implements IAIVisionEngineService {
         const formData = new FormData();
         formData.append('file', fileBlob, fileName);
 
-        const uploadRes = await fetch(`${this.API_BASE}/api/v1/evidence/upload`, {
+        const uploadRes = await fetch(this._getUrl('/api/v1/evidence/upload'), {
           method: 'POST',
           body: formData,
           signal: AbortSignal.timeout(15000),
@@ -86,7 +91,7 @@ export class EnterpriseAIVisionEngineService implements IAIVisionEngineService {
       }
 
       // Step 2: Analyze with real AI (Gemini or PIL fallback on backend)
-      const analyzeRes = await fetch(`${this.API_BASE}/api/v1/vision/analyze`, {
+      const analyzeRes = await fetch(this._getUrl('/api/v1/vision/analyze'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ evidenceId, modelTask }),
@@ -99,16 +104,27 @@ export class EnterpriseAIVisionEngineService implements IAIVisionEngineService {
 
       const d = analyzeJson.data;
 
-      const detectedObjects: BoundingBox[] = (d.boundingBoxes || []).map((bb: any, idx: number) => ({
-        id: bb.id || `bb-${idx + 1}`,
-        label: bb.label || 'Detected Object',
-        confidence: Number(bb.confidence) || 85,
-        x: Number(bb.x) || 22,
-        y: Number(bb.y) || 28,
-        width: Number(bb.width) || 48,
-        height: Number(bb.height) || 38,
-        color: this._colorFromSeverity(d.damageSeverity || 'medium'),
-      }));
+      const detectedObjects: BoundingBox[] = (d.boundingBoxes || []).map((bb: any, idx: number) => {
+        const rawX = bb.xMin !== undefined ? (bb.xMin <= 1 ? bb.xMin * 100 : bb.xMin) : (bb.x ?? 22);
+        const rawY = bb.yMin !== undefined ? (bb.yMin <= 1 ? bb.yMin * 100 : bb.yMin) : (bb.y ?? 28);
+        const rawW = bb.xMax !== undefined && bb.xMin !== undefined
+          ? ((bb.xMax - bb.xMin) <= 1 ? (bb.xMax - bb.xMin) * 100 : (bb.xMax - bb.xMin))
+          : (bb.width ?? 48);
+        const rawH = bb.yMax !== undefined && bb.yMin !== undefined
+          ? ((bb.yMax - bb.yMin) <= 1 ? (bb.yMax - bb.yMin) * 100 : (bb.yMax - bb.yMin))
+          : (bb.height ?? 38);
+
+        return {
+          id: bb.id || `bb-${idx + 1}`,
+          label: bb.label || 'Detected Object',
+          confidence: Number(bb.confidence) || 85,
+          x: Math.round(Number(rawX)),
+          y: Math.round(Number(rawY)),
+          width: Math.round(Number(rawW)),
+          height: Math.round(Number(rawH)),
+          color: this._colorFromSeverity(d.damageSeverity || 'medium'),
+        };
+      });
 
       const extractedMetadata: EXIFGpsMetadata = {
         latitude: 16.5062,

@@ -1,6 +1,14 @@
-# spatial.py - EarthMind AI Spatial Intelligence Engine
-import numpy as np
-from sklearn.cluster import DBSCAN
+import math
+
+try:
+    import numpy as np
+    from sklearn.cluster import DBSCAN
+    _SKLEARN_AVAILABLE = True
+except ImportError:
+    np = None
+    DBSCAN = None
+    _SKLEARN_AVAILABLE = False
+
 try:
     import h3
 except ImportError:
@@ -95,6 +103,56 @@ def cluster_incidents_dbscan(incidents: list, eps_km: float = 0.5, min_samples: 
     if not incidents or len(incidents) < min_samples:
         return {"clusters": {}, "noise": incidents, "hotspots": []}
         
+    if not _SKLEARN_AVAILABLE or np is None or DBSCAN is None:
+        # Pure-Python distance clustering fallback
+        def _haversine_dist(lat1, lon1, lat2, lon2):
+            R = 6371.0
+            p1, p2 = math.radians(lat1), math.radians(lat2)
+            dp = math.radians(lat2 - lat1)
+            dl = math.radians(lon2 - lon1)
+            a = math.sin(dp/2.0)**2 + math.cos(p1)*math.cos(p2)*math.sin(dl/2.0)**2
+            return R * 2.0 * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
+
+        assigned = [-1] * len(incidents)
+        cluster_id = 0
+        for i in range(len(incidents)):
+            if assigned[i] != -1:
+                continue
+            neighbors = [i]
+            for j in range(len(incidents)):
+                if i != j:
+                    d = _haversine_dist(
+                        incidents[i].get('latitude', 0.0), incidents[i].get('longitude', 0.0),
+                        incidents[j].get('latitude', 0.0), incidents[j].get('longitude', 0.0)
+                    )
+                    if d <= eps_km:
+                        neighbors.append(j)
+            if len(neighbors) >= min_samples:
+                for idx in neighbors:
+                    assigned[idx] = cluster_id
+                cluster_id += 1
+
+        clusters = {}
+        noise = []
+        for idx, cid in enumerate(assigned):
+            if cid == -1:
+                noise.append(incidents[idx])
+            else:
+                clusters.setdefault(cid, []).append(incidents[idx])
+
+        hotspots = []
+        for cid, items in clusters.items():
+            lats = [c.get('latitude', 0.0) for c in items]
+            lngs = [c.get('longitude', 0.0) for c in items]
+            hotspots.append({
+                "cluster_id": int(cid),
+                "size": len(items),
+                "center_lat": sum(lats) / len(lats) if lats else 0.0,
+                "center_lng": sum(lngs) / len(lngs) if lngs else 0.0,
+            })
+
+        return {"clusters": clusters, "noise": noise, "hotspots": hotspots}
+
     coords = np.array([[inc.get('latitude', 0.0), inc.get('longitude', 0.0)] for inc in incidents])
     
     # DBSCAN requires distance metric. We can use haversine with radians.

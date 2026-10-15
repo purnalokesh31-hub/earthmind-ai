@@ -7,6 +7,7 @@ import { persist } from 'zustand/middleware';
 import type { Incident, User, Notification, Category, Severity, IncidentStatus, AuditLogEntry, UndoAction, UndoableActionType, EvidenceItem, EvidenceMediaType, AIVisionAnalysis } from '../types';
 import { DEMO_INCIDENTS, DEMO_USERS, DEMO_NOTIFICATIONS } from '../lib/demo-data';
 import { runVisionInference } from '../lib/services/ai.service';
+import { incidentService } from '../lib/api-client';
 
 interface AppState {
   // Auth
@@ -179,15 +180,25 @@ export const useAppStore = create<AppState>()(
   // Incidents
   incidents: DEMO_INCIDENTS,
   setIncidents: (incidents) => set({ incidents }),
-  addIncident: (incident) => set((s) => ({ incidents: [incident, ...s.incidents] })),
+  addIncident: (incident) => {
+    set((s) => ({ incidents: [incident, ...s.incidents] }));
+    if (typeof window !== 'undefined') {
+      incidentService.createIncident(incident).catch(() => {});
+    }
+  },
   updateIncident: (id, updates) => set((s) => ({
     incidents: s.incidents.map((inc) => inc.id === id ? { ...inc, ...updates, updatedAt: new Date().toISOString() } : inc),
     selectedIncident: s.selectedIncident?.id === id ? { ...s.selectedIncident, ...updates, updatedAt: new Date().toISOString() } : s.selectedIncident
   })),
-  transitionIncidentStage: (id, status) => set((s) => ({
-    incidents: s.incidents.map((inc) => inc.id === id ? { ...inc, status, updatedAt: new Date().toISOString() } : inc),
-    selectedIncident: s.selectedIncident?.id === id ? { ...s.selectedIncident, status, updatedAt: new Date().toISOString() } : s.selectedIncident,
-  })),
+  transitionIncidentStage: (id, status) => {
+    set((s) => ({
+      incidents: s.incidents.map((inc) => inc.id === id ? { ...inc, status, updatedAt: new Date().toISOString() } : inc),
+      selectedIncident: s.selectedIncident?.id === id ? { ...s.selectedIncident, status, updatedAt: new Date().toISOString() } : s.selectedIncident,
+    }));
+    if (typeof window !== 'undefined') {
+      incidentService.transitionStage({ incidentId: id, newStatus: status }).catch(() => {});
+    }
+  },
   dispatch: (incidentId, action) => {
     // Placeholder for future dispatch logic
     console.log(`Dispatch ${action} for incident ${incidentId}`);
@@ -602,7 +613,7 @@ export const useAppStore = create<AppState>()(
 
   uploadEvidence: async (item) => {
     const state = get();
-    const newId = `ev-${Date.now()}`;
+    const newId = item.id || `ev-${Date.now()}`;
     const newEvidence: EvidenceItem = {
       id: newId,
       name: item.name || 'Uploaded_Evidence_Asset.jpg',
@@ -695,6 +706,14 @@ export const useAppStore = create<AppState>()(
         e.id === evidenceId ? { ...e, linkedIncidentId: incidentId } : e
       ),
     }));
+
+    if (typeof window !== 'undefined') {
+      fetch(`/api/v1/evidence/${evidenceId}/link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ incidentId }),
+      }).catch(() => {});
+    }
 
     state.logAuditEvent({
       event: 'EVIDENCE_LINKED_TO_INCIDENT',

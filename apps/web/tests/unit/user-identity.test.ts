@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { UserIdentityService } from '../../lib/server/auth';
-import { RoleType } from '@prisma/client';
+import { RoleType } from '../../lib/server/auth/permissions';
 
 describe('Phase 6.3.9 — User Identity Service Verification', () => {
   const mockUser = {

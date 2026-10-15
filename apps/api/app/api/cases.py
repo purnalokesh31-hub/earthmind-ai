@@ -2,15 +2,37 @@
 
 import os
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from apps.api.app.core.db import get_db
-from apps.api.app.models.case import Case
-from apps.api.app.workers.worker import run_case_analysis_pipeline
-from apps.api.app.core.config import settings
+try:
+    from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, UploadFile, File, Form
+    from sqlalchemy.orm import Session
+    from pydantic import BaseModel
+    from apps.api.app.models.case import Case
+    from apps.api.app.workers.worker import run_case_analysis_pipeline
+    _FASTAPI_AVAILABLE = True
+    router = APIRouter()
+except ImportError:
+    _FASTAPI_AVAILABLE = False
+    class _DummyRouter:
+        def post(self, *args, **kwargs): return lambda f: f
+        def get(self, *args, **kwargs): return lambda f: f
+        def patch(self, *args, **kwargs): return lambda f: f
+        def delete(self, *args, **kwargs): return lambda f: f
+    router = _DummyRouter()
+    BaseModel = object
+    Session = object
+    def Depends(*args, **kwargs): return None
+    def File(*args, **kwargs): return None
+    BackgroundTasks = object
+    UploadFile = object
+    HTTPException = Exception
 
-router = APIRouter()
+def get_db():
+    from apps.api.app.core.db import get_db_connection
+    conn = get_db_connection()
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 # Pydantic schemas for serialization
 class CaseCreateSchema(BaseModel):

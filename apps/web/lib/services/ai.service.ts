@@ -56,9 +56,74 @@ export async function runFullAnalysis(
 // 2. Individual AI Capabilities & Multi-Modal Vision Engine
 // ──────────────────────────────────────────────────────────────
 
+function inferModelTaskFromEvidence(evidence: EvidenceItem): string {
+  const name = (evidence.name || '').toLowerCase();
+  if (name.includes('flood') || name.includes('waterlog') || name.includes('inundat') || name.includes('rain')) return 'flood';
+  if (name.includes('garbage') || name.includes('waste') || name.includes('trash') || name.includes('litter')) return 'garbage';
+  if (name.includes('dump') || name.includes('debris') || name.includes('scrap')) return 'illegal_dumping';
+  if (name.includes('fire') || name.includes('smoke') || name.includes('flame') || name.includes('burn')) return 'fire';
+  if (name.includes('tree') || name.includes('canopy') || name.includes('branch') || name.includes('arbor')) return 'tree_damage';
+  if (name.includes('crop') || name.includes('blight') || name.includes('farm') || name.includes('leaf') || name.includes('plant')) return 'crop_disease';
+  if (name.includes('leak') || name.includes('pipe') || name.includes('hydro') || name.includes('sewage')) return 'water_leakage';
+  if (name.includes('pole') || name.includes('wire') || name.includes('electric') || name.includes('transformer')) return 'electric_pole_damage';
+  if (name.includes('building') || name.includes('wall') || name.includes('masonry') || name.includes('facade') || name.includes('struct')) return 'building_damage';
+  return 'road_damage';
+}
+
 export async function runVisionInference(evidence: EvidenceItem): Promise<AIVisionAnalysis> {
   const start = Date.now();
-  await mockDelay(500);
+  const modelTask = inferModelTaskFromEvidence(evidence);
+
+  // Try calling real vision analysis API if running on client and evidence has an ID
+  if (typeof window !== 'undefined' && evidence.id && evidence.type === 'image') {
+    try {
+      const res = await fetch('/api/v1/vision/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          evidenceId: evidence.id,
+          modelTask,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json.data) {
+          const d = json.data;
+          const boxes = (d.boundingBoxes || []).map((b: any, idx: number) => ({
+            id: b.id || `bbox-${idx + 1}`,
+            label: b.label || 'Detected Hazard',
+            confidence: Number(b.confidence ? (b.confidence > 1 ? b.confidence : (b.confidence * 100).toFixed(1)) : 85),
+            severity: (b.severity || (d.riskAssessment?.severityCategory?.toLowerCase()) || 'medium') as any,
+            x: Math.round(b.xMin !== undefined ? (b.xMin > 1 ? b.xMin : b.xMin * 100) : (b.x ?? 20)),
+            y: Math.round(b.yMin !== undefined ? (b.yMin > 1 ? b.yMin : b.yMin * 100) : (b.y ?? 20)),
+            width: Math.round(b.xMax !== undefined && b.xMin !== undefined ? (b.xMax > 1 ? b.xMax - b.xMin : (b.xMax - b.xMin) * 100) : (b.width ?? 40)),
+            height: Math.round(b.yMax !== undefined && b.yMin !== undefined ? (b.yMax > 1 ? b.yMax - b.yMin : (b.yMax - b.yMin) * 100) : (b.height ?? 35)),
+          }));
+
+          const objectsDetected = boxes.length > 0
+            ? boxes.map((b: any) => b.label)
+            : (d.detectedObjects || ['Infrastructure Hazard']);
+
+          return {
+            objectsDetected,
+            overallConfidence: boxes.length > 0
+              ? Math.round(boxes.reduce((acc: number, cur: any) => acc + Number(cur.confidence), 0) / boxes.length)
+              : (d.confidenceScore || 90),
+            damageScore: d.riskAssessment?.riskScore ?? (d.damageScore || 75),
+            classification: d.damageType || (d.taskLabel ? d.taskLabel.replace(/_/g, ' ').toUpperCase() : 'Critical Infrastructure Deformation'),
+            recommendedDepartment: d.riskAssessment?.recommendedDepartment || d.suggestedDepartment || 'Public Works Department',
+            processingTimeMs: d.processingTimeMs || (Date.now() - start),
+            boundingBoxes: boxes,
+          };
+        }
+      }
+    } catch {
+      // Clean fallback to simulated baseline
+    }
+  }
+
+  await mockDelay(400);
 
   if (evidence.type === 'image') {
     return {

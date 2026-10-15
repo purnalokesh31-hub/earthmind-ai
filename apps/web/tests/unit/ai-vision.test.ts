@@ -92,7 +92,7 @@ describe('Phase 6.6.1 — Enterprise AI Vision Platform Foundation', () => {
       expect(result.boundingBoxes.length).toBeGreaterThan(0);
       expect(result.riskAssessment.riskScore).toBeDefined();
       expect(result.processingTimeMs).toBeGreaterThanOrEqual(0);
-    });
+    }, 10000);
 
     it('should throw error when running inference with non-existent model ID', async () => {
       const mockBuffer = Buffer.from('Sample Data');

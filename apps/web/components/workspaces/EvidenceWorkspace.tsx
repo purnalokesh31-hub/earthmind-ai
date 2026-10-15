@@ -143,6 +143,7 @@ export default function EvidenceWorkspace() {
     setAnalyzing(true);
     try {
       let finalStorageUrl = filePreview || '/uploads/evidence-default.jpg';
+      let serverEvidenceId: string | undefined;
 
       if (selectedUploadFile) {
         const formData = new FormData();
@@ -159,10 +160,14 @@ export default function EvidenceWorkspace() {
           if (json.data?.storageUrl) {
             finalStorageUrl = json.data.storageUrl;
           }
+          if (json.data?.evidenceId) {
+            serverEvidenceId = json.data.evidenceId;
+          }
         }
       }
 
       const newAsset = await uploadEvidence({
+        id: serverEvidenceId,
         name: uploadName,
         type: uploadType,
         url: finalStorageUrl,

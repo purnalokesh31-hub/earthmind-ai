@@ -3,7 +3,8 @@
 // ──────────────────────────────────────────────────────────────
 // EarthMind PIOS — Enterprise Computer Vision Studio
 // ──────────────────────────────────────────────────────────────
-// Multi-modal drag & drop, task selector, SVG bounding box viewer,
+// Multi-modal intake, 10-task domain model switcher, SVG bounding box viewer,
+// live image upload, genuine PIL/Gemini inference or transparent simulated fallback,
 // confidence gauge, damage estimator, 1-click dispatch & export.
 // ──────────────────────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ import {
   DollarSign,
   MapPin,
   Cpu,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { cn } from '../../lib/utils';
 
@@ -62,9 +64,13 @@ export default function ComputerVisionWorkspace() {
   const [prediction, setPrediction] = useState<CVPredictionOutput | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [targetIncidentId, setTargetIncidentId] = useState<string>('');
+  const [customImage, setCustomImage] = useState<string | null>(null);
 
-  // Sample Preview Media URL
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Default Preview Media URLs by modality
   const previewUrl = useMemo(() => {
+    if (customImage && activeModality === 'image') return customImage;
     switch (activeModality) {
       case 'image':
         return 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=1200&auto=format&fit=crop&q=80';
@@ -73,20 +79,24 @@ export default function ComputerVisionWorkspace() {
       default:
         return 'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1200&auto=format&fit=crop&q=80';
     }
-  }, [activeModality]);
+  }, [activeModality, customImage]);
 
   // Execute Neural Vision Task
-  const handleRunInference = async (task: VisionTaskType = selectedTask) => {
+  const handleRunInference = async (task: VisionTaskType = selectedTask, imageToAnalyze?: string) => {
     setIsProcessing(true);
     setPrediction(null);
 
+    const imageParam = imageToAnalyze || customImage || previewUrl;
+
     try {
-      const output = await computerVisionEngine.runInference(task);
+      const output = await computerVisionEngine.runInference(task, imageParam);
       setPrediction(output);
+
+      const modeLabel = output.isSimulated ? 'Simulated Preset' : output.analysisEngine || 'PIL-LocalCV';
 
       addToast({
         title: 'Neural Inference Complete',
-        message: `Processed ${output.taskLabel} in ${output.inferenceTimeMs}ms with ${output.confidence}% confidence.`,
+        message: `Processed ${output.taskLabel} via ${modeLabel} in ${output.inferenceTimeMs}ms (${output.confidence}% confidence).`,
         type: 'success',
       });
     } catch (err) {
@@ -98,6 +108,36 @@ export default function ComputerVisionWorkspace() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  // Handle Local File Upload
+  const handleFileSelect = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      addToast({
+        title: 'Invalid File Type',
+        message: 'Only image assets (JPEG, PNG, WebP) are supported for computer vision inference.',
+        type: 'error',
+      });
+      return;
+    }
+
+    if (file.size > 25 * 1024 * 1024) {
+      addToast({
+        title: 'File Too Large',
+        message: 'Image size exceeds maximum limit of 25MB.',
+        type: 'error',
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      setCustomImage(dataUrl);
+      setActiveModality('image');
+      handleRunInference(selectedTask, dataUrl);
+    };
+    reader.readAsDataURL(file);
   };
 
   // 1-Click Dispatch to Zustand SSOT
@@ -132,8 +172,8 @@ export default function ComputerVisionWorkspace() {
         confidence: prediction.confidence,
         classification: prediction.taskLabel,
         severity: prediction.severity,
-        summary: `YOLO Inference (${prediction.modelVersion}): ${prediction.taskLabel}. Detected ${prediction.detectedObjects.join(', ')}. Est. Damage: ${prediction.damageCost}.`,
-        recommendations: [`Deploy ${prediction.departmentRecommendation} unit immediately`],
+        summary: `Vision Inference (${prediction.analysisEngine || prediction.modelVersion}): ${prediction.taskLabel}. Detected: ${prediction.detectedObjects.join(', ')}. Est. Damage: ${prediction.damageCost}.`,
+        recommendations: [`Deploy ${prediction.departmentRecommendation} response team immediately`],
         estimatedCost: prediction.damageCost,
       },
       updatedAt: new Date().toISOString(),
@@ -141,7 +181,7 @@ export default function ComputerVisionWorkspace() {
 
     addToast({
       title: 'Vision Analysis Attached',
-      message: `Updated Incident ${targetIncidentId} with YOLO telemetry.`,
+      message: `Updated Incident ${targetIncidentId} with ${prediction.analysisEngine || 'Vision'} telemetry.`,
       type: 'success',
     });
   };
@@ -175,18 +215,44 @@ export default function ComputerVisionWorkspace() {
           <div>
             <h1 className="text-xl font-bold text-slate-100 tracking-tight flex items-center gap-2">
               Enterprise Computer Vision Studio
-              <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-md bg-cyan-950 text-cyan-400 border border-cyan-500/40">
-                YOLOv8 / TensorRT 10.0
+              <span className={cn(
+                "text-[10px] uppercase font-mono px-2 py-0.5 rounded-md border",
+                prediction?.isSimulated
+                  ? "bg-amber-950/80 text-amber-300 border-amber-500/40"
+                  : "bg-cyan-950 text-cyan-400 border border-cyan-500/40"
+              )}>
+                {prediction
+                  ? (prediction.isSimulated ? 'Simulated Preset [Offline]' : `${prediction.analysisEngine} [Live Engine]`)
+                  : 'PIL-LocalCV / Gemini Multi-Modal Engine'}
               </span>
             </h1>
             <p className="text-xs text-slate-400 mt-0.5">
-              Drag & drop intake • 10 domain vision models • Real-time SVG bounding boxes • Damage cost estimation
+              Live evidence intake • 10 domain hazard tasks • Real-time SVG bounding boxes • Damage cost estimation
             </p>
           </div>
         </div>
 
         {/* Quick Controls */}
         <div className="flex items-center gap-2">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleFileSelect(file);
+            }}
+            accept="image/*"
+            className="hidden"
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-[11px] border-white/10 text-slate-300 hover:border-cyan-500/40"
+            icon={<Upload className="w-3.5 h-3.5 text-cyan-400" />}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Upload Photo
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -216,7 +282,7 @@ export default function ComputerVisionWorkspace() {
       {/* ── 2. TASK SELECTION BAR ── */}
       <Card className="p-3 border-cyan-500/20 bg-[#0A1220]/60">
         <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-2 px-1">
-          Select Neural Vision Model Task
+          Select Neural Vision Model Task (10 Hazard Categories Supported)
         </span>
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-cyan-500/20">
           {VISION_TASKS.map((task) => {
@@ -267,9 +333,20 @@ export default function ComputerVisionWorkspace() {
                 ))}
               </div>
 
-              <span className="text-[10px] font-mono text-cyan-400 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5" /> TensorRT Accelerated
-              </span>
+              <div className="flex items-center gap-2">
+                {customImage && (
+                  <button
+                    onClick={() => setCustomImage(null)}
+                    className="text-[10px] text-slate-400 hover:text-rose-400 transition-colors"
+                  >
+                    Reset to Default Image
+                  </button>
+                )}
+                <span className="text-[10px] font-mono text-cyan-400 flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  {prediction?.analysisEngine || 'PIL / Multi-Modal Vision'}
+                </span>
+              </div>
             </div>
 
             {/* Drag & Drop Canvas Area */}
@@ -282,7 +359,12 @@ export default function ComputerVisionWorkspace() {
               onDrop={(e) => {
                 e.preventDefault();
                 setIsDragOver(false);
-                handleRunInference();
+                const file = e.dataTransfer.files?.[0];
+                if (file) {
+                  handleFileSelect(file);
+                } else {
+                  handleRunInference();
+                }
               }}
               className={cn(
                 'relative min-h-[420px] rounded-xl border-2 border-dashed transition-all overflow-hidden flex flex-col items-center justify-center bg-slate-950/80',
@@ -295,7 +377,7 @@ export default function ComputerVisionWorkspace() {
                   <div className="w-16 h-16 rounded-full border-4 border-cyan-500/20 border-t-cyan-400 animate-spin" />
                   <div className="text-center">
                     <p className="text-sm font-bold text-cyan-300 animate-pulse">Running Neural Inference Pipeline...</p>
-                    <p className="text-xs text-slate-400 font-mono mt-1">YOLOv8 Feature Extraction & Bounding Box Layering</p>
+                    <p className="text-xs text-slate-400 font-mono mt-1">Feature Extraction & Spatial Hazard Bounding Box Layering</p>
                   </div>
                   {/* Laser Scan Line */}
                   <motion.div
@@ -357,7 +439,7 @@ export default function ComputerVisionWorkspace() {
                     <span className="text-[10px] text-emerald-400 font-bold">OCR Confidence 98.6%</span>
                   </div>
                   <pre className="whitespace-pre-wrap leading-relaxed text-slate-300 bg-slate-900/60 p-4 rounded-lg border border-white/5">
-                    {`MUNICIPAL WATER & ROAD INFRASTRUCTURE REPORT\nDate: Aug 5, 2026\nLocation: Benz Circle Sector 4, Ward 12\nObservation: Cast-iron main 300mm pipe fatigue with active groundwater seepage.\nPriority: HIGH\nAssigned Department: Public Works Department`}
+                    {`MUNICIPAL WATER & ROAD INFRASTRUCTURE REPORT\nDate: Oct 2026\nLocation: Benz Circle Sector 4, Ward 12\nObservation: Cast-iron main 300mm pipe fatigue with active groundwater seepage.\nPriority: HIGH\nAssigned Department: Public Works Department`}
                   </pre>
                 </div>
               ) : (
@@ -396,9 +478,19 @@ export default function ComputerVisionWorkspace() {
         <div className="space-y-4">
           {prediction ? (
             <Card className="p-5 border-cyan-500/30 bg-[#0A1220]/90 space-y-4 shadow-2xl">
-              <div className="border-b border-white/10 pb-3">
-                <span className="text-[10px] uppercase font-mono text-cyan-400 font-bold">Neural Vision Results</span>
-                <h3 className="text-base font-bold text-slate-100 mt-0.5">{prediction.taskLabel}</h3>
+              <div className="border-b border-white/10 pb-3 flex items-start justify-between">
+                <div>
+                  <span className="text-[10px] uppercase font-mono text-cyan-400 font-bold">Neural Vision Results</span>
+                  <h3 className="text-base font-bold text-slate-100 mt-0.5">{prediction.taskLabel}</h3>
+                </div>
+                <span className={cn(
+                  "text-[9px] uppercase font-mono px-2 py-0.5 rounded font-bold border",
+                  prediction.isSimulated
+                    ? "bg-amber-950/70 text-amber-300 border-amber-500/40"
+                    : "bg-emerald-950/70 text-emerald-300 border-emerald-500/40"
+                )}>
+                  {prediction.isSimulated ? 'Simulated Preset' : prediction.analysisEngine || 'Real Inference'}
+                </span>
               </div>
 
               {/* Confidence Gauge */}
@@ -410,6 +502,9 @@ export default function ComputerVisionWorkspace() {
                 <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                   <div style={{ width: `${prediction.confidence}%` }} className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full" />
                 </div>
+                <p className="text-[9px] text-slate-500">
+                  Feature detection confidence. Physical incident confirmation requires field operational verification.
+                </p>
               </div>
 
               {/* Severity & Cost Gauge */}
@@ -431,6 +526,20 @@ export default function ComputerVisionWorkspace() {
                   <Building2 className="w-3.5 h-3.5" /> {prediction.departmentRecommendation}
                 </span>
               </div>
+
+              {/* Detected Objects List */}
+              {prediction.detectedObjects.length > 0 && (
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-white/5">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block mb-1">Detected Objects</span>
+                  <div className="flex flex-wrap gap-1">
+                    {prediction.detectedObjects.map((obj, i) => (
+                      <span key={i} className="text-[10px] px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-300 border border-cyan-500/30">
+                        {obj}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Action Buttons */}
               <div className="space-y-2 pt-3 border-t border-white/10">

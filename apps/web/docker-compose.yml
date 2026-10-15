@@ -1,6 +1,6 @@
 # ──────────────────────────────────────────────────────────────
 # EarthMind PIOS — Docker Compose Multi-Service Architecture
-# Services: Next.js App, PostgreSQL 16 + PostGIS, Redis 7
+# Services: Next.js Web, Python AI Engine, PostgreSQL 16 + PostGIS, Redis 7
 # ──────────────────────────────────────────────────────────────
 
 version: '3.8'
@@ -23,16 +23,38 @@ services:
       - REDIS_PORT=6379
       - STORAGE_DRIVER=local
       - LOCAL_STORAGE_PATH=./public/uploads
-      - AI_ENGINE_URL=http://localhost:8000
+      - AI_ENGINE_URL=http://api:8000
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+      api:
+        condition: service_healthy
     networks:
       - earthmind-network
 
-  # ── 2. PostgreSQL 16 with PostGIS Spatial Extension ──────────
+  # ── 2. Python Intelligence & Vision Engine ───────────────────
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    container_name: earthmind-api
+    restart: always
+    ports:
+      - '8000:8000'
+    environment:
+      - PORT=8000
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/api/v1/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - earthmind-network
+
+  # ── 3. PostgreSQL 16 with PostGIS Spatial Extension ──────────
   postgres:
     image: postgis/postgis:16-3.4
     container_name: earthmind-postgres
@@ -53,7 +75,7 @@ services:
     networks:
       - earthmind-network
 
-  # ── 3. Redis 7 Alpine In-Memory Cache ─────────────────────────
+  # ── 4. Redis 7 Alpine In-Memory Cache ─────────────────────────
   redis:
     image: redis:7-alpine
     container_name: earthmind-redis

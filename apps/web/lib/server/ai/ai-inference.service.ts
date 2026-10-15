@@ -14,20 +14,35 @@ export class AIInferenceService {
   ) {}
 
   private shouldUseExternalEngine(): boolean {
-    return Boolean(aiConfig.engineUrl && !aiConfig.engineUrl.includes('localhost') && !aiConfig.engineUrl.includes('127.0.0.1'));
+    return Boolean(aiConfig.engineUrl);
   }
 
   private normalizeExternalResult(evidenceId: string, modelId: string, payload: any, fallbackFingerprint: string, startTime: number): PredictionResult {
     const boxes: BoundingBoxResult[] = Array.isArray(payload.boundingBoxes)
-      ? payload.boundingBoxes.map((box: any) => ({
-          xMin: Number(box.xMin ?? box.x ?? 0),
-          yMin: Number(box.yMin ?? box.y ?? 0),
-          xMax: Number(box.xMax ?? ((box.x ?? 0) + (box.width ?? 0.2))),
-          yMax: Number(box.yMax ?? ((box.y ?? 0) + (box.height ?? 0.2))),
-          label: String(box.label || box.class || 'detected_hazard'),
-          confidence: Number(box.confidence ?? box.score ?? 0.75),
-          areaPercent: Number(box.areaPercent ?? 8),
-        }))
+      ? payload.boundingBoxes.map((box: any) => {
+          const rawX = Number(box.xMin ?? box.x ?? 0);
+          const rawY = Number(box.yMin ?? box.y ?? 0);
+          const rawW = Number(box.width ?? (box.xMax !== undefined ? box.xMax - rawX : 0.2));
+          const rawH = Number(box.height ?? (box.yMax !== undefined ? box.yMax - rawY : 0.2));
+
+          const xMin = rawX > 1 ? rawX / 100 : rawX;
+          const yMin = rawY > 1 ? rawY / 100 : rawY;
+          const width = rawW > 1 ? rawW / 100 : rawW;
+          const height = rawH > 1 ? rawH / 100 : rawH;
+
+          const rawConf = Number(box.confidence ?? box.score ?? 0.75);
+          const confidence = rawConf > 1 ? rawConf / 100 : rawConf;
+
+          return {
+            xMin,
+            yMin,
+            xMax: Math.min(1, xMin + width),
+            yMax: Math.min(1, yMin + height),
+            label: String(box.label || box.class || 'detected_hazard'),
+            confidence,
+            areaPercent: Number(box.areaPercent ?? Math.round(width * height * 100)),
+          };
+        })
       : [];
 
     const risk: RiskScoreResult = {
@@ -54,12 +69,17 @@ export class AIInferenceService {
 
   private async runExternalInference(evidenceId: string, imageBuffer: Buffer, modelTask: string, modelId: string, fingerprint: string, startTime: number): Promise<PredictionResult | null> {
     if (!this.shouldUseExternalEngine()) return null;
-
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), aiConfig.inferenceTimeoutMs);
+    const timeoutMs = process.env.NODE_ENV === 'test' ? 2000 : aiConfig.inferenceTimeoutMs;
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
-      const res = await fetch(`${aiConfig.engineUrl.replace(/\/$/, '')}/v1/vision/analyze`, {
+      const baseUrl = aiConfig.engineUrl.replace(/\/$/, '');
+      const analyzeUrl = baseUrl.endsWith('/api')
+        ? `${baseUrl}/v1/vision/analyze`
+        : `${baseUrl}/api/v1/vision/analyze`;
+
+      const res = await fetch(analyzeUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,

@@ -6,6 +6,21 @@ import { NAV_ITEMS } from '../../lib/demo-data';
 import { cn } from '../../lib/utils';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
+// IDs of nav items restricted to users in the admin access list
+const ADMIN_ONLY_ITEMS = new Set(['admin']);
+
+const DOMAIN_ITEMS = [
+  { id: 'infrastructure', label: 'Infrastructure', icon: '🏗️' },
+  { id: 'agriculture', label: 'Agriculture', icon: '🌾' },
+  { id: 'water', label: 'Water Resources', icon: '💧' },
+  { id: 'energy', label: 'Energy Grid', icon: '⚡' },
+  { id: 'climate', label: 'Climate & Air', icon: '🌡️' },
+  { id: 'environment', label: 'Environment', icon: '🌱' },
+  { id: 'wildlife', label: 'Wildlife Ecology', icon: '🐾' },
+  { id: 'disaster', label: 'Disaster Grid', icon: '⚠️' },
+  { id: 'urban', label: 'Urban Density', icon: '🏙️' },
+];
+
 export default function Sidebar() {
   const {
     activeTab, setActiveTab, sidebarCollapsed, toggleSidebar,
@@ -17,8 +32,15 @@ export default function Sidebar() {
     setActiveTab(id);
   };
 
-  // IDs of nav items restricted to users in the admin access list
-  const ADMIN_ONLY_ITEMS = new Set(['admin']);
+  const handleDomainNavigate = (id: any) => {
+    setActiveDomainWorkspace(id);
+    setActiveTab(id);
+  };
+
+  const isAdminUser =
+    adminPanelAccessIds.includes(currentUser?.id ?? '') ||
+    currentUser?.role === 'Administrator' ||
+    (currentUser?.role as string) === 'SUPER_ADMIN';
 
   return (
     <aside
@@ -35,7 +57,7 @@ export default function Sidebar() {
 
         {NAV_ITEMS.map((item) => {
           // RBAC: hide admin-only items from unauthorized users
-          if (ADMIN_ONLY_ITEMS.has(item.id) && !adminPanelAccessIds.includes(currentUser?.id ?? '')) {
+          if (ADMIN_ONLY_ITEMS.has(item.id) && !isAdminUser) {
             return null;
           }
 
@@ -56,6 +78,35 @@ export default function Sidebar() {
               )}
             >
               <span className="text-sm shrink-0">{item.icon}</span>
+              {!sidebarCollapsed && (
+                <span className="truncate flex-1">{item.label}</span>
+              )}
+            </button>
+          );
+        })}
+
+        {/* Domain Workspaces Section */}
+        <div className={cn('px-2 pt-3 pb-1 text-[9px] font-semibold uppercase tracking-wider text-gray-500', sidebarCollapsed && 'text-center')}>
+          {sidebarCollapsed ? '—' : 'Domains'}
+        </div>
+
+        {DOMAIN_ITEMS.map((item) => {
+          const active = activeTab === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => handleDomainNavigate(item.id)}
+              title={sidebarCollapsed ? item.label : undefined}
+              aria-label={item.label}
+              aria-current={active ? 'page' : undefined}
+              className={cn(
+                'flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-[12px] font-medium transition-all duration-150 w-full text-left relative',
+                active
+                  ? 'bg-emerald-600/10 text-emerald-400 border-l-2 border-emerald-500'
+                  : 'text-gray-400 hover:text-gray-200 hover:bg-white/5 border-l-2 border-transparent'
+              )}
+            >
+              <span className="text-xs shrink-0">{item.icon}</span>
               {!sidebarCollapsed && (
                 <span className="truncate flex-1">{item.label}</span>
               )}

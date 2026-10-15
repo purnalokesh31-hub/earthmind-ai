@@ -1,4 +1,4 @@
-﻿// ──────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────
 // EarthMind PIOS v2.0 — Enterprise Computer Vision Inference Engine
 // Real Gemini Vision API backend + PIL local fallback + offline mock
 // ──────────────────────────────────────────────────────────────
@@ -19,6 +19,7 @@ export type VisionTaskType =
   | 'flood_detection'
   | 'garbage_detection'
   | 'crop_health'
+  | 'crop_stress'
   | 'electric_pole'
   | 'fire_detection';
 
@@ -41,6 +42,7 @@ export interface CVPredictionOutput {
   modelVersion: string;
   yoloModelVersion?: string;
   analysisEngine?: string;
+  isSimulated?: boolean;
   riskScore?: number;
   aiVisionSummary?: string;
 }
@@ -56,10 +58,11 @@ const TASK_LABELS: Record<string, string> = {
   flood_detection: 'Hydrodynamic Urban Flood Inundation',
   garbage: 'Solid Waste & Illegal Dumping Detection',
   garbage_detection: 'Solid Waste & Illegal Dumping Detection',
-  illegal_dumping: 'Solid Waste & Illegal Dumping Detection',
+  illegal_dumping: 'Unsanctioned Debris & Industrial Waste',
   tree_damage: 'Arboricultural Hazard & Fallen Canopy',
   crop_disease: 'Agricultural Pest & Foliar Blight Detection',
   crop_health: 'Agricultural Pest & Foliar Blight Detection',
+  crop_stress: 'Agricultural Pest & Foliar Blight Detection',
   water_leakage: 'Sub-surface Hydro Main Fracture',
   electric_pole_damage: 'High-Voltage Utility Pole Tilt & Transformer Damage',
   electric_pole: 'High-Voltage Utility Pole Tilt & Transformer Damage',
@@ -90,6 +93,12 @@ const MOCK_PRESETS: Record<string, Partial<CVPredictionOutput>> = {
     confidence: 95.8, severity: 'medium', affectedAreaSqMeters: 120,
     damageCost: 'Rs 45,000', departmentRecommendation: 'Municipal Solid Waste Management', riskScore: 55,
   },
+  illegal_dumping: {
+    detectedObjects: ['Unsanctioned Construction Debris', 'Industrial Refuse Slag', 'Hazardous Scrap Heap'],
+    boundingBoxes: [{ id: 'cv-id1', label: 'Illegal Debris Heap', confidence: 93.5, severity: 'high', x: 26, y: 32, width: 48, height: 42 }],
+    confidence: 93.5, severity: 'high', affectedAreaSqMeters: 190,
+    damageCost: 'Rs 75,000', departmentRecommendation: 'Municipal Enforcement & Sanitation', riskScore: 76,
+  },
   water_leakage: {
     detectedObjects: ['Pressurized Main Valve Breach', 'Sub-grade Plume', 'Asphalt Sub-erosion'],
     boundingBoxes: [{ id: 'cv-7', label: 'Main Pipe Joint Leak (2,400 L/h)', confidence: 96.5, severity: 'critical', x: 20, y: 25, width: 50, height: 45 }],
@@ -102,10 +111,39 @@ const MOCK_PRESETS: Record<string, Partial<CVPredictionOutput>> = {
     confidence: 99.1, severity: 'critical', affectedAreaSqMeters: 450,
     damageCost: 'Rs 8,50,000', departmentRecommendation: 'Fire Services & Disaster Response', riskScore: 98,
   },
+  building_damage: {
+    detectedObjects: ['Structural Shear Failure', 'Masonry Facade Crack', 'Exposed Structural Rebar'],
+    boundingBoxes: [{ id: 'cv-bd1', label: 'Load-Bearing Wall Fracture', confidence: 94.2, severity: 'critical', x: 22, y: 18, width: 48, height: 52 }],
+    confidence: 94.2, severity: 'critical', affectedAreaSqMeters: 380,
+    damageCost: 'Rs 5,40,000', departmentRecommendation: 'Municipal Safety Board', riskScore: 88,
+  },
+  tree_damage: {
+    detectedObjects: ['Uprooted Banyan Trunk', 'Arbor Overhead Hazard', 'Canopy Electrical Impingement'],
+    boundingBoxes: [{ id: 'cv-td1', label: 'Fallen Canopy Hazard', confidence: 91.8, severity: 'high', x: 18, y: 22, width: 62, height: 50 }],
+    confidence: 91.8, severity: 'high', affectedAreaSqMeters: 140,
+    damageCost: 'Rs 85,000', departmentRecommendation: 'Urban Forestry & Parks Board', riskScore: 74,
+  },
+  crop_disease: {
+    detectedObjects: ['Foliar Chlorosis Cluster', 'Pest Blight Necrosis', 'Canopy Moisture Deficit'],
+    boundingBoxes: [{ id: 'cv-cd1', label: 'Severe Leaf Blight Zone', confidence: 89.4, severity: 'medium', x: 25, y: 24, width: 52, height: 46 }],
+    confidence: 89.4, severity: 'medium', affectedAreaSqMeters: 2800,
+    damageCost: 'Rs 1,20,000', departmentRecommendation: 'Agricultural Extension Office', riskScore: 62,
+  },
+  electric_pole_damage: {
+    detectedObjects: ['33kV Utility Pole Tilt', 'High-Tension Conductor Snap Risk', 'Transformer Base Fracture'],
+    boundingBoxes: [{ id: 'cv-ep1', label: 'Utility Pole Tilt (24 deg)', confidence: 96.0, severity: 'critical', x: 38, y: 10, width: 26, height: 78 }],
+    confidence: 96.0, severity: 'critical', affectedAreaSqMeters: 65,
+    damageCost: 'Rs 2,10,000', departmentRecommendation: 'State Energy Grid Command', riskScore: 91,
+  },
 };
 
 export class EnterpriseComputerVisionEngine implements IComputerVisionEngine {
-  private readonly API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+  private _getUrl(path: string): string {
+    const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const base = raw.replace(/\/api\/v1\/?$/, '').replace(/\/api\/?$/, '').replace(/\/+$/, '');
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    return `${base}${cleanPath}`;
+  }
 
   async runInference(task: VisionTaskType, imageUrl?: string): Promise<CVPredictionOutput> {
     const t0 = Date.now();
@@ -113,56 +151,91 @@ export class EnterpriseComputerVisionEngine implements IComputerVisionEngine {
     const taskLabel = TASK_LABELS[task] || TASK_LABELS[normalizedTask] || 'General Hazard Detection';
     const modelVersion = 'EarthMind-Vision-v2.0';
 
-    try {
-      const res = await fetch(`${this.API_BASE}/api/v1/vision/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ evidenceId: '', modelTask: normalizedTask }),
-        signal: AbortSignal.timeout(8000),
-      });
-
-      if (!res.ok) throw new Error(`Vision API returned ${res.status}`);
-      const json = await res.json();
-      if (!json?.success || !json?.data) throw new Error('Invalid API response');
-
-      const d = json.data;
-      const inferenceTimeMs = Date.now() - t0;
-
-      return {
-        taskType: task,
-        taskId: normalizedTask as VisionTaskType,
-        taskLabel,
-        detectedObjects: d.detectedObjects || [],
-        boundingBoxes: (d.boundingBoxes || []).map((bb: any, idx: number) => ({
-          id: bb.id || `cv-${idx}`,
-          label: bb.label || 'Detected Object',
-          confidence: Number(bb.confidence) || 85,
-          severity: this._severityFromScore(d.riskScore || 50),
-          x: Number(bb.x) || 20,
-          y: Number(bb.y) || 20,
-          width: Number(bb.width) || 40,
-          height: Number(bb.height) || 40,
-        })),
-        confidence: Number(d.confidenceScore) || 85,
-        confidenceScore: Number(d.confidenceScore) || 85,
-        severity: (d.damageSeverity as Severity) || 'medium',
-        affectedArea: `${d.affectedAreaSqMeters || 0} m²`,
-        affectedAreaSqMeters: Number(d.affectedAreaSqMeters) || 0,
-        damageCost: d.estimatedDamageCost || 'N/A',
-        estimatedDamageCost: d.estimatedDamageCost || 'N/A',
-        departmentRecommendation: d.suggestedDepartment || 'Municipal Administration',
-        suggestedDepartment: d.suggestedDepartment || 'Municipal Administration',
-        inferenceTimeMs,
-        modelVersion,
-        yoloModelVersion: modelVersion,
-        analysisEngine: d.analysisEngine || 'EarthMind-AI',
-        riskScore: Number(d.riskScore) || 50,
-        aiVisionSummary: d.aiVisionSummary || '',
-      };
-    } catch (err) {
-      console.warn(`[CV Engine] Backend unreachable, using offline mock for task="${task}":`, err);
-      return this._offlineMock(task, normalizedTask as VisionTaskType, taskLabel, modelVersion);
+    const payload: Record<string, any> = { evidenceId: '', modelTask: normalizedTask };
+    if (imageUrl) {
+      if (imageUrl.startsWith('data:image')) {
+        payload.imageBase64 = imageUrl;
+      } else if (imageUrl.startsWith('http')) {
+        payload.imageUrl = imageUrl;
+      }
     }
+
+    // Try primary Python API base, then fallback to relative Next.js API
+    const endpoints = [
+      this._getUrl('/api/v1/vision/analyze'),
+      '/api/v1/vision/analyze',
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(6000),
+        });
+
+        if (!res.ok) continue;
+        const json = await res.json();
+        if (!json?.success || !json?.data) continue;
+
+        const d = json.data;
+        const inferenceTimeMs = Date.now() - t0;
+
+        return {
+          taskType: task,
+          taskId: normalizedTask as VisionTaskType,
+          taskLabel,
+          detectedObjects: d.detectedObjects || [],
+          boundingBoxes: (d.boundingBoxes || []).map((bb: any, idx: number) => {
+            const rawX = bb.xMin !== undefined ? (bb.xMin <= 1 ? bb.xMin * 100 : bb.xMin) : (bb.x ?? 20);
+            const rawY = bb.yMin !== undefined ? (bb.yMin <= 1 ? bb.yMin * 100 : bb.yMin) : (bb.y ?? 20);
+            const rawW = bb.xMax !== undefined && bb.xMin !== undefined
+              ? ((bb.xMax - bb.xMin) <= 1 ? (bb.xMax - bb.xMin) * 100 : (bb.xMax - bb.xMin))
+              : (bb.width ?? 40);
+            const rawH = bb.yMax !== undefined && bb.yMin !== undefined
+              ? ((bb.yMax - bb.yMin) <= 1 ? (bb.yMax - bb.yMin) * 100 : (bb.yMax - bb.yMin))
+              : (bb.height ?? 40);
+
+            return {
+              id: bb.id || `cv-${idx + 1}`,
+              label: bb.label || 'Detected Object',
+              confidence: Number(bb.confidence) || 85,
+              severity: this._severityFromScore(d.riskScore || 50),
+              x: Math.round(Number(rawX)),
+              y: Math.round(Number(rawY)),
+              width: Math.round(Number(rawW)),
+              height: Math.round(Number(rawH)),
+            };
+          }),
+          confidence: Number(d.confidenceScore) || 85,
+          confidenceScore: Number(d.confidenceScore) || 85,
+          severity: (d.damageSeverity as Severity) || 'medium',
+          affectedArea: `${d.affectedAreaSqMeters || 0} m²`,
+          affectedAreaSqMeters: Number(d.affectedAreaSqMeters) || 0,
+          damageCost: d.estimatedDamageCost || 'N/A',
+          estimatedDamageCost: d.estimatedDamageCost || 'N/A',
+          departmentRecommendation: d.suggestedDepartment || 'Municipal Administration',
+          suggestedDepartment: d.suggestedDepartment || 'Municipal Administration',
+          inferenceTimeMs,
+          modelVersion: Boolean(d.isSimulated)
+            ? (d.modelVersion?.includes('Offline Simulation') ? d.modelVersion : `${d.modelVersion || modelVersion} [Offline Simulation]`)
+            : (d.modelVersion || modelVersion),
+          yoloModelVersion: Boolean(d.isSimulated)
+            ? (d.modelVersion?.includes('Offline Simulation') ? d.modelVersion : `${d.modelVersion || modelVersion} [Offline Simulation]`)
+            : (d.modelVersion || modelVersion),
+          analysisEngine: d.analysisEngine || 'PIL-LocalCV',
+          isSimulated: Boolean(d.isSimulated),
+          riskScore: Number(d.riskScore) || 50,
+          aiVisionSummary: d.aiVisionSummary || '',
+        };
+      } catch {
+        // Continue to next endpoint attempt
+      }
+    }
+
+    // Explicit offline simulation when both network endpoints are unreachable
+    return this._offlineMock(task, normalizedTask as VisionTaskType, taskLabel, modelVersion);
   }
 
   async runInferenceTask(task: VisionTaskType): Promise<CVPredictionOutput> {
@@ -171,9 +244,12 @@ export class EnterpriseComputerVisionEngine implements IComputerVisionEngine {
 
   private _normalizeTask(task: VisionTaskType): string {
     const aliases: Record<string, string> = {
-      flood_detection: 'flood', garbage_detection: 'garbage',
-      illegal_dumping: 'garbage', crop_health: 'crop_disease',
-      electric_pole: 'electric_pole_damage', fire_detection: 'fire',
+      flood_detection: 'flood',
+      garbage_detection: 'garbage',
+      crop_health: 'crop_disease',
+      crop_stress: 'crop_disease',
+      electric_pole: 'electric_pole_damage',
+      fire_detection: 'fire',
     };
     return aliases[task] || task;
   }
@@ -185,13 +261,21 @@ export class EnterpriseComputerVisionEngine implements IComputerVisionEngine {
     return 'low';
   }
 
-  private _offlineMock(task: VisionTaskType, normalizedTask: VisionTaskType, taskLabel: string, modelVersion: string): CVPredictionOutput {
+  private _offlineMock(
+    task: VisionTaskType,
+    normalizedTask: VisionTaskType,
+    taskLabel: string,
+    modelVersion: string
+  ): CVPredictionOutput {
     const preset = MOCK_PRESETS[normalizedTask] || MOCK_PRESETS['road_damage'];
     return {
-      taskType: task, taskId: normalizedTask, taskLabel,
+      taskType: task,
+      taskId: normalizedTask,
+      taskLabel,
       detectedObjects: preset.detectedObjects || ['Surface Anomaly'],
       boundingBoxes: preset.boundingBoxes || [],
-      confidence: preset.confidence || 85, confidenceScore: preset.confidence || 85,
+      confidence: preset.confidence || 85,
+      confidenceScore: preset.confidence || 85,
       severity: preset.severity || 'medium',
       affectedArea: `${preset.affectedAreaSqMeters || 100} m²`,
       affectedAreaSqMeters: preset.affectedAreaSqMeters || 100,
@@ -200,9 +284,12 @@ export class EnterpriseComputerVisionEngine implements IComputerVisionEngine {
       departmentRecommendation: preset.departmentRecommendation || 'Municipal Administration',
       suggestedDepartment: preset.departmentRecommendation || 'Municipal Administration',
       inferenceTimeMs: Math.round(11 + Math.random() * 6),
-      modelVersion: `${modelVersion} [Offline]`, yoloModelVersion: `${modelVersion} [Offline]`,
-      analysisEngine: 'Mock-Offline', riskScore: preset.riskScore || 50,
-      aiVisionSummary: `Offline analysis for ${taskLabel}. Risk: ${preset.riskScore || 50}/100.`,
+      modelVersion: `${modelVersion} [Offline Simulation]`,
+      yoloModelVersion: `${modelVersion} [Offline Simulation]`,
+      analysisEngine: 'Mock-Simulation',
+      isSimulated: true,
+      riskScore: preset.riskScore || 50,
+      aiVisionSummary: `Simulated demonstration analysis for ${taskLabel}. Risk Score: ${preset.riskScore || 50}/100. Department: ${preset.departmentRecommendation}.`,
     };
   }
 }

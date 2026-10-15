@@ -48,7 +48,7 @@ const pageVariants = {
 export default function EarthMindApp() {
   const { activeTab, contextPanelOpen, isReportModalOpen, closeReportModal, selectedIncident, adminPanelAccessIds, currentUser } = useAppStore();
 
-  const hasAdminAccess = adminPanelAccessIds.includes(currentUser?.id ?? '');
+  const hasAdminAccess = adminPanelAccessIds.includes(currentUser?.id ?? '') || currentUser?.role === 'Administrator' || (currentUser?.role as string) === 'SUPER_ADMIN';
 
   const renderWorkspace = useMemo(() => {
     switch (activeTab) {
@@ -56,6 +56,12 @@ export default function EarthMindApp() {
       case 'auth':
         return <LoginView />;
       case 'home':
+      case 'mission-control':
+      case 'overview':
+        return <HomePage />;
+      case 'live-command':
+      case 'live-intelligence':
+      case 'city-live':
         return <CityLiveIntelligenceWorkspace />;
       case 'incidents':
       case 'command-center':
@@ -137,7 +143,7 @@ export default function EarthMindApp() {
       case 'wildlife':
         return <DomainWorkspacePage domain={activeTab} />;
       default:
-        return <CityLiveIntelligenceWorkspace />;
+        return <HomePage />;
     }
   }, [activeTab, hasAdminAccess]);
 

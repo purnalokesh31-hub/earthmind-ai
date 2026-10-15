@@ -73,15 +73,16 @@ function parseEnv(): RawEnvironment {
     }
   }
 
-  // Email delivery. Defaults to the console driver outside production so local development
-  // never silently depends on unconfigured SMTP credentials; production must use real SMTP.
-  const emailDriver = (process.env.EMAIL_DRIVER || (isProd && !isOfflinePrototype ? 'smtp' : 'console')) as 'smtp' | 'console';
+  // Email delivery. Defaults to the console driver outside production or during build phase so local development
+  // and builds never fail on unconfigured SMTP credentials; production runtime must use real SMTP.
+  const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build' || process.env.npm_lifecycle_event === 'build';
+  const emailDriver = (process.env.EMAIL_DRIVER || (isProd && !isOfflinePrototype && !isBuildPhase ? 'smtp' : 'console')) as 'smtp' | 'console';
   const smtpHost = process.env.SMTP_HOST || '';
   const smtpUser = process.env.SMTP_USER || undefined;
   const smtpPassword = process.env.SMTP_PASSWORD || undefined;
   const emailFrom = process.env.EMAIL_FROM || 'no-reply@earthmind.local';
 
-  if (isProd && !isOfflinePrototype) {
+  if (isProd && !isOfflinePrototype && !isBuildPhase) {
     if (emailDriver !== 'smtp') {
       throw new Error(
         'FATAL: EMAIL_DRIVER must be "smtp" in NODE_ENV=production. ' +

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
-import { RoleType } from '@prisma/client';
+import { RoleType } from '../../lib/server/auth/permissions';
 import container, { TOKENS } from '../../lib/server/container';
 import { JwtService, TokenService, AuthMiddleware, RbacGuard } from '../../lib/server/auth';
 import { MemoryCacheProvider } from '../../lib/server/cache';

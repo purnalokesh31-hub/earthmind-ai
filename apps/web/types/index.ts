@@ -80,6 +80,7 @@ export interface Incident {
   assignedTo?: string;
   department?: string;
   reportedAt: string;
+  createdAt?: string;
   updatedAt: string;
   resolvedAt?: string;
   imageUrl?: string;

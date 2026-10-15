@@ -241,7 +241,32 @@ export default function LoginView() {
                       <input type="checkbox" id="remember" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="w-4 h-4 rounded bg-black/40 border-white/10 text-cyan-500 focus:ring-cyan-500 focus:ring-offset-0 focus:ring-offset-transparent" />
                       <label htmlFor="remember" className="text-[11px] text-gray-400 cursor-pointer font-medium">Remember me</label>
                     </div>
-                    <button type="button" className="text-[11px] text-cyan-400 font-bold hover:underline">Forgot password?</button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!email) {
+                          setError('Please enter your email address to request password reset');
+                          return;
+                        }
+                        setError('');
+                        setIsLoading(true);
+                        try {
+                          await fetch('/api/v1/auth/forgot-password', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ email }),
+                          });
+                          setSuccessMsg('If a matching account exists, password reset instructions have been dispatched.');
+                        } catch {
+                          setSuccessMsg('If a matching account exists, password reset instructions have been dispatched.');
+                        } finally {
+                          setIsLoading(false);
+                        }
+                      }}
+                      className="text-[11px] text-cyan-400 font-bold hover:underline"
+                    >
+                      Forgot password?
+                    </button>
                   </div>
 
                   <button disabled={isLoading} type="submit" className="w-full bg-cyan-500 hover:bg-cyan-400 text-[#050B14] font-bold py-3.5 rounded-xl transition-all shadow-[0_0_20px_rgba(6,182,212,0.2)] mt-2 disabled:opacity-50">

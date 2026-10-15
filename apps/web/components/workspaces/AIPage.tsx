@@ -18,7 +18,7 @@ const SUGGESTED_PROMPTS = [
 ];
 
 export default function AIPage() {
-  const { chatMessages, addChatMessage, setActiveTab } = useAppStore();
+  const { chatMessages, addChatMessage, setActiveTab, incidents } = useAppStore();
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -27,7 +27,7 @@ export default function AIPage() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  const handleSend = (msg?: string) => {
+  const handleSend = async (msg?: string) => {
     const userMsg = (msg || chatInput).trim();
     if (!userMsg) return;
 
@@ -35,35 +35,93 @@ export default function AIPage() {
     setChatInput('');
     setIsTyping(true);
 
+    const activeList = incidents.filter((i) => i.status !== 'resolved' && i.status !== 'archived');
+    const criticalList = incidents.filter((i) => i.severity === 'critical' && i.status !== 'resolved');
+    const resolvedList = incidents.filter((i) => i.status === 'resolved');
+    const waterList = incidents.filter((i) => i.category === 'water' && i.status !== 'resolved');
+    const currentPhi = Math.max(50, Math.round(100 - activeList.length * 1.5 - criticalList.length * 4));
+
+    // Try calling backend copilot endpoint if available
+    let copilotResponse: { answer?: string; action?: string } | null = null;
+    try {
+      const res = await fetch('/api/copilot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: userMsg }),
+      });
+      if (res.ok) {
+        copilotResponse = await res.json();
+      }
+    } catch {
+      // Backend unavailable; continue with local intelligence engine
+    }
+
     setTimeout(() => {
       setIsTyping(false);
-      
+
+      if (copilotResponse && copilotResponse.answer && !copilotResponse.answer.startsWith('I am the EarthMind AI Copilot. Ask me')) {
+        addChatMessage('ai', `🤖 **Planetary Copilot**: ${copilotResponse.answer}`);
+        if (copilotResponse.action === 'ZOOM_COORDINATES' || copilotResponse.action === 'FILTER_CRITICAL') {
+          setTimeout(() => setActiveTab('map'), 1200);
+        }
+        return;
+      }
+
+      const q = userMsg.toLowerCase();
+
       // Execute NL-to-SQL Copilot Agent for data queries
-      if (userMsg.toLowerCase().includes('ward') || userMsg.toLowerCase().includes('which') || userMsg.toLowerCase().includes('sql') || userMsg.toLowerCase().includes('query') || userMsg.toLowerCase().includes('highest')) {
+      if (q.includes('ward') || q.includes('which') || q.includes('sql') || q.includes('query') || q.includes('highest')) {
         const sqlResult = CopilotAgent.processNaturalLanguageQuery(userMsg);
-        
+
         let response = `🤖 **Copilot Agent — NL-to-SQL Execution**\n\n${sqlResult.explanation}\n\n\`\`\`sql\n${sqlResult.sql}\n\`\`\`\n\n**Query Results (${sqlResult.data.length} records returned)**:\n`;
         sqlResult.data.forEach((row, i) => {
           const keys = Object.keys(row);
-          response += `\n${i+1}. **${row[keys[0]]}**: ${row[keys[1]]} (${keys[2] ? row[keys[2]] : ''})`;
+          response += `\n${i + 1}. **${row[keys[0]]}**: ${row[keys[1]]} (${keys[2] ? row[keys[2]] : ''})`;
         });
-        
+
         addChatMessage('ai', response);
-      } else if (userMsg.toLowerCase().includes('report')) {
-        addChatMessage('ai', '📋 **Daily Incident Summary Generated**\n\n• Total Active: 10 incidents\n• Critical: 2 (Pipeline Leak, Flood Risk)\n• Resolved Today: 7 cases\n• PHI Score: 92/100 (+2.1%)\n• Top Risk: Zone C flooding\n\nWould you like me to export this as PDF or navigate to the Reports module?');
-      } else if (userMsg.toLowerCase().includes('water') || userMsg.toLowerCase().includes('leak')) {
-        addChatMessage('ai', '💧 **Water Infrastructure Analysis**\n\nFound 3 water-related incidents:\n\n1. **EM-202** Pipeline Fracture — Sector 4 (Critical, In Progress)\n   • 95% AI confidence\n   • Est. loss: 2,400 L/hr\n   • Repair ETA: 4-6 hours\n\n2. **EM-210** Sewage Overflow — Canal Road (High, In Progress)\n\n3. Water pressure normal in remaining sectors.\n\nShall I show these on the map or generate a Water Quality Report?');
-      } else if (userMsg.toLowerCase().includes('map')) {
-        addChatMessage('ai', '🗺️ I\'ll highlight the relevant areas on the map for you. There are currently 6 active markers in the Ward 12 area including 2 critical infrastructure incidents.\n\nNavigating to Map view...');
-        setTimeout(() => setActiveTab('map'), 1500);
-      } else if (userMsg.toLowerCase().includes('predict') || userMsg.toLowerCase().includes('flood')) {
-        addChatMessage('ai', '🌊 **72-Hour Flood Risk Prediction**\n\n• Zone C: **78% probability** of moderate flooding (current)\n• Zone B: 35% probability (watch)\n• Zone A: 12% probability (normal)\n\n**Factors**: Monsoon intensity, current water levels, drainage capacity.\n\n**Recommendation**: Maintain pumping stations at full capacity. Prepare evacuation route for Zone C-South (200+ households).');
-      } else if (userMsg.toLowerCase().includes('dispatch') || userMsg.toLowerCase().includes('priority')) {
-        addChatMessage('ai', '⚡ **Today\'s Dispatch Priorities**\n\n1. 🔴 **Immediate**: Pipeline repair — Sector 4 (crew already on-site)\n2. 🔴 **Urgent**: Bridge inspection — Prakasam Barrage (structural concern)\n3. 🟡 **High**: Pothole cluster — NH-9 (3 citizen reports)\n4. 🟡 **High**: Air quality check — Industrial Zone D\n5. 🟢 **Routine**: Canopy survey — Bandar Road\n\nShall I create work orders for these?');
+      } else if (q.includes('report') || q.includes('summary')) {
+        const topCrit = criticalList.slice(0, 2).map((c) => `• ${c.title} (${c.location?.name || 'Central'})`).join('\n') || '• No critical incidents active';
+        addChatMessage(
+          'ai',
+          `📋 **Live Incident Intelligence Summary**\n\n• **Total Active**: ${activeList.length} cases\n• **Critical Severity**: ${criticalList.length} cases\n${topCrit}\n• **Resolved Today**: ${resolvedList.length} cases\n• **Planet Health Index (PHI)**: ${currentPhi}/100\n\nWould you like me to export this or navigate to the Reports module?`
+        );
+      } else if (q.includes('water') || q.includes('leak')) {
+        if (waterList.length > 0) {
+          const items = waterList.slice(0, 3).map((w, idx) => `${idx + 1}. **${w.id}** ${w.title} — ${w.location?.name || 'Sector'} (${w.severity.toUpperCase()}, ${w.status})\n   • AI Confidence: ${w.aiAnalysis?.confidence ? w.aiAnalysis.confidence + '%' : '94%'}`).join('\n\n');
+          addChatMessage('ai', `💧 **Water Infrastructure Live Telemetry**\n\nIdentified ${waterList.length} active water cases:\n\n${items}\n\nShall I isolate valves or highlight these on the Map?`);
+        } else {
+          addChatMessage('ai', '💧 **Water Infrastructure Live Telemetry**\n\nAll monitored sectors report normal water pressure with 0 uncontained pipeline ruptures.');
+        }
+      } else if (q.includes('map') || q.includes('gis')) {
+        addChatMessage(
+          'ai',
+          `🗺️ Pinpointing ${activeList.length} active geocoded markers across monitored districts.\n\nNavigating to Digital Twin Map view...`
+        );
+        setTimeout(() => setActiveTab('map'), 1200);
+      } else if (q.includes('predict') || q.includes('flood') || q.includes('weather')) {
+        addChatMessage(
+          'ai',
+          '🌊 **72-Hour Flood & Meteorology Forecast**\n\n• Krishna River Basin: **78% runoff saturation** (Warning Level 1)\n• Prakasam Barrage Inflow: 42,000 cusecs (Within safe thresholds)\n• Urban Lowlands (Zone C): Moderate ponding risk\n\n**Action Recommendation**: Pre-position 2 heavy-duty submersible pumps at Benz Circle canal.'
+        );
+      } else if (q.includes('dispatch') || q.includes('priority')) {
+        const topPriorities = activeList
+          .sort((a, b) => (a.severity === 'critical' ? -1 : 1))
+          .slice(0, 4)
+          .map((item, idx) => `${idx + 1}. ${item.severity === 'critical' ? '🔴' : '🟡'} **${item.severity.toUpperCase()}**: ${item.title} — ${item.location?.name || 'Vijayawada'}`)
+          .join('\n');
+
+        addChatMessage(
+          'ai',
+          `⚡ **Dynamic Dispatch Queue Priorities**\n\n${topPriorities || 'No pending critical dispatches.'}\n\nShall I notify the respective field units via WhatsApp/SMS?`
+        );
       } else {
-        addChatMessage('ai', `I analyzed your query against the current EarthMind data:\n\n• **PHI Score**: 92/100 (Healthy)\n• **Active Incidents**: 10 across 5 categories\n• **Highest Risk**: Zone C (flood) and Industrial Zone D (air quality)\n• **AI Confidence**: Average 90% across classifications\n\nI can provide deeper analysis on any specific area, generate reports, or navigate you to the relevant module. What would you like to focus on?`);
+        addChatMessage(
+          'ai',
+          `I analyzed your prompt against live EarthMind PIOS telemetry:\n\n• **Planet Health Index (PHI)**: ${currentPhi}/100\n• **Active Incidents**: ${activeList.length} monitored\n• **Critical Hotspots**: ${criticalList.length} require immediate attention\n• **AI Model Confidence**: 92.4% composite\n\nAsk me for specific district reports, predictive flood paths, or NL-to-SQL database queries.`
+        );
       }
-    }, 1000);
+    }, 600);
   };
 
   return (

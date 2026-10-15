@@ -6,4 +6,5 @@
 # NO external packages (like fastapi, sqlalchemy, pydantic, or multipart)
 # are required to run this backend!
 # 
-# You do not need to pip install anything to run the server or tests.
+# Optional dependencies for Local Computer Vision Pipeline & Tests:
+Pillow>=10.0.0
