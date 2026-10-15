@@ -1,112 +1,129 @@
-# EarthMind PIOS — Production Deployment Guide
-**Architecture**: Vercel + Railway Hybrid Cloud Deployment  
-**Target Date**: October 2026  
-**Status**: VERIFIED & PRODUCTION-READY  
+# EarthMind PIOS — Production & Free Cloud Deployment Guide
+**Recommended Architectures**:
+1. **Option A (100% Completely Free Tier — $0/month)**: Vercel + Render + Neon Serverless PostgreSQL
+2. **Option B (Hybrid Cloud)**: Vercel + Railway Managed PostgreSQL & Python
 
 ---
 
-## 1. Architecture Topology
+## 🌟 Option A: 100% Free Deployment ($0/month, No Credit Card Required)
+
+This configuration requires **$0** and **zero credit cards**, using permanent free-tier plans:
+
+| Tier | Service | Provider | Cost | Plan Limitations |
+| :--- | :--- | :--- | :--- | :--- |
+| **Frontend** | Next.js 15 App | [Vercel](https://vercel.com) | **$0/mo** | Unlimited deployments, global edge CDN |
+| **Backend API** | Python Vision Engine | [Render](https://render.com) | **$0/mo** | 750 free compute hours/mo, free SSL |
+| **Database** | PostgreSQL 16 | [Neon](https://neon.tech) / [Supabase](https://supabase.com) | **$0/mo** | 0.5 GB storage, connection pooling, free forever |
 
 ```
-                   ┌────────────────────────────────────────┐
-                   │          Vercel Global Edge            │
-                   │  Next.js 15 App Router & Serverless   │
-                   │  Web UI, GIS Canvas & REST API Proxy  │
-                   └──────────────────┬─────────────────────┘
-                                      │
-              ┌───────────────────────┴───────────────────────┐
-              │                                               │
-              ▼                                               ▼
-┌───────────────────────────────┐               ┌───────────────────────────────┐
-│       Railway PostgreSQL      │               │     Railway Python Backend    │
-│  Managed PostgreSQL 16 DB    │◄──────────────┤   Zero-Dependency API Engine  │
-│  Spatial / Incidents / RBAC   │               │   PIL + Gemini Vision SDK     │
-│  Connection Pooling           │               │   7-Agent Parallel Orchestr   │
-└───────────────────────────────┘               └───────────────────────────────┘
+                       ┌────────────────────────────────────────┐
+                       │          Vercel Global Edge            │
+                       │     Next.js 15 Frontend & APIs         │
+                       │        (100% Free Hobby Tier)          │
+                       └──────────────────┬─────────────────────┘
+                                          │
+                  ┌───────────────────────┴───────────────────────┐
+                  │                                               │
+                  ▼                                               ▼
+    ┌───────────────────────────┐                   ┌───────────────────────────┐
+    │     Neon PostgreSQL       │                   │       Render.com          │
+    │  Serverless Postgres 16   │◄──────────────────┤    Python API Backend     │
+    │   (Free Forever, 0.5GB)   │                   │  (Free Web Service Tier)  │
+    └───────────────────────────┘                   └───────────────────────────┘
 ```
 
-- **Frontend & Edge API Gateway (Vercel)**: Next.js 15 application running globally distributed serverless routes. Connects directly to Railway PostgreSQL using Prisma with connection pooling.
-- **Python Intelligence Engine (Railway)**: Standard-library HTTP server running on port `$PORT`, handling multi-agent orchestration, Hungarian dispatch, failure prediction, and local PIL / Gemini Vision analysis.
-- **Managed Database (Railway / Supabase)**: High-availability PostgreSQL database containing 18 relational models.
+---
+
+### Step 1: Create Free PostgreSQL on Neon.tech (2 Minutes)
+
+1. Go to [https://neon.tech](https://neon.tech) and sign up using your **GitHub account** (No credit card needed).
+2. Click **Create Project**:
+   - Name: `earthmind-db`
+   - Region: Choose the region closest to you (e.g. `US East (Ohio)` or `Europe (Frankfurt)`).
+3. On your project dashboard, copy the **Connection string** (make sure **Pooled connection** checkbox is checked):
+   ```
+   postgresql://earthmind_owner:pass123@ep-cool-forest-123456-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require
+   ```
+4. Save this string — you will use it as your `DATABASE_URL`.
 
 ---
 
-## 2. Step 1: Deploy Database & Python API on Railway
+### Step 2: Push Prisma Database Schema to Neon
 
-### 2.1. Create Railway Project
-1. Log in to [Railway](https://railway.com).
-2. Click **New Project** → **Provision PostgreSQL**.
-3. Under the PostgreSQL service, go to **Variables** and copy the `DATABASE_URL` (e.g. `postgresql://postgres:password@postgres.railway.internal:5432/railway`).
-4. Under PostgreSQL → **Settings** → **Public Networking**, click **Generate Domain** if you want external access (copies public connection string).
-
-### 2.2. Deploy Python API
-1. In the same Railway project, click **New** → **GitHub Repo**.
-2. Select your repository: `purnalokesh31-hub/earthmind-ai`.
-3. Go to service **Settings**:
-   - **Root Directory**: leave as `/` (or `apps/api`)
-   - Railway automatically detects [`railway.json`](../railway.json) and [`nixpacks.toml`](../nixpacks.toml).
-4. Go to **Variables** and add:
-   - `GEMINI_API_KEY`: *(Optional)* Your Google Gemini API Key for Gemini 2.0 Flash vision.
-   - `DATABASE_URL`: Reference `${{Postgres.DATABASE_URL}}` or paste connection string.
-5. Under **Settings** → **Networking**, click **Generate Domain** to get your public HTTPS URL (e.g., `https://earthmind-api.up.railway.app`).
-
----
-
-## 3. Step 2: Deploy Next.js Web Application on Vercel
-
-### 3.1. Import Project to Vercel
-1. Log in to [Vercel](https://vercel.com).
-2. Click **Add New** → **Project**.
-3. Import `purnalokesh31-hub/earthmind-ai`.
-4. In the configuration screen:
-   - **Framework Preset**: Next.js
-   - **Root Directory**: Click *Edit* and select **`apps/web`**
-   - **Build Command**: `npm run build` (or leave default Next.js build)
-   - **Output Directory**: `.next` (default)
-   - **Install Command**: `npm install` (runs `postinstall: prisma generate`)
-
-### 3.2. Configure Environment Variables on Vercel
-Add the following variables under **Project Settings → Environment Variables**:
-
-| Variable Name | Value | Required | Description |
-| :--- | :--- | :--- | :--- |
-| `DATABASE_URL` | `postgresql://postgres:...@...railway.app:5432/railway` | **YES** | Railway PostgreSQL connection string |
-| `AI_ENGINE_URL` | `https://earthmind-api.up.railway.app` | **YES** | Public URL of your Railway Python service |
-| `NEXT_PUBLIC_API_URL` | `https://<your-vercel-domain>.vercel.app/api/v1` | **YES** | Vercel production domain API base |
-| `JWT_SECRET` | *(64-char random hex string)* | **YES** | Session access token signing key |
-| `JWT_REFRESH_SECRET` | *(64-char random hex string)* | **YES** | Refresh token signing key |
-| `NODE_ENV` | `production` | **YES** | Production optimization flag |
-| `STORAGE_DRIVER` | `local` | YES | Evidence file storage mode |
-| `GEMINI_API_KEY` | *(Optional)* | NO | Google Gemini API Key |
-
-5. Click **Deploy**. Vercel will build and launch the frontend across its global edge network.
-
----
-
-## 4. Step 3: Initialize PostgreSQL Schema
-
-Once your Railway PostgreSQL database is online, push the schema directly from your terminal:
-
-```bash
-# In apps/web (with DATABASE_URL pointing to Railway Postgres):
+From your local machine or terminal:
+```powershell
 cd apps/web
-npx prisma db push
-```
 
-To seed the initial departments, administrative officers, and baseline telemetry:
-```bash
+# Set your Neon connection string in your current terminal session:
+$env:DATABASE_URL="postgresql://earthmind_owner:pass123@ep-cool-forest-123456-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+
+# Push schema tables:
+npx prisma db push
+
+# Seed initial departments and demo data:
 npx tsx prisma/seed.ts
 ```
+*Your Neon database now contains all 18 EarthMind relational tables!*
 
 ---
 
-## 5. Pre-Flight Verification Checklist
+### Step 3: Deploy Free Python API on Render.com (3 Minutes)
 
-Before opening the system to operators:
-- [x] Prisma datasource switched to `postgresql` in [schema.prisma](../apps/web/prisma/schema.prisma)
-- [x] Next.js builds standalone bundle without errors (`npm run build`)
-- [x] Zero TypeScript compilation errors (`npx tsc --noEmit`)
-- [x] 138 test files and 917 unit tests passing (`npm test`)
-- [x] Python API reads dynamic `$PORT` from environment
-- [x] Railway configuration (`railway.json`, `Procfile`, `nixpacks.toml`) validated
-- [x] Vercel configuration (`vercel.json`) validated
+1. Go to [https://render.com](https://render.com) and log in with your **GitHub account**.
+2. Click **New +** → **Blueprint** (or **Web Service**):
+   - Select your GitHub repository: `purnalokesh31-hub/earthmind-ai`.
+   - Render will automatically detect [`render.yaml`](../render.yaml) from the repository!
+3. If creating via **Web Service** manually:
+   - **Name**: `earthmind-api`
+   - **Runtime**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `python apps/api/app/main.py`
+   - **Plan Type**: `Free`
+   - **Health Check Path**: `/api/v1/health`
+4. In **Environment Variables**, add:
+   - `PORT`: `10000`
+   - `DATABASE_URL`: *(Your Neon PostgreSQL connection string)*
+   - `GEMINI_API_KEY`: *(Optional, for Gemini 2.0 Flash vision)*
+5. Click **Create Web Service**.
+6. Once deployed, Render provides your public URL:
+   `https://earthmind-api.onrender.com`
+
+---
+
+### Step 4: Deploy Next.js Web App on Vercel (3 Minutes)
+
+1. Go to [https://vercel.com](https://vercel.com) and log in with GitHub.
+2. Click **Add New** → **Project** → Import `purnalokesh31-hub/earthmind-ai`.
+3. In the project settings:
+   - **Framework Preset**: `Next.js`
+   - **Root Directory**: Click *Edit* and select **`apps/web`**
+4. Expand **Environment Variables** and add:
+
+| Key | Example Value | Description |
+| :--- | :--- | :--- |
+| `DATABASE_URL` | `postgresql://earthmind_owner:pass...@ep-...-pooler...neon.tech/neondb?sslmode=require` | Neon connection string with connection pooler |
+| `AI_ENGINE_URL` | `https://earthmind-api.onrender.com` | Your public Render Python API URL |
+| `NEXT_PUBLIC_API_URL` | `https://your-earthmind.vercel.app/api/v1` | Vercel domain URL |
+| `JWT_SECRET` | `a1b2c3d4e5f6g7h8a1b2c3d4e5f6g7h8a1b2c3d4e5f6g7h8a1b2c3d4e5` | 64-character random string |
+| `JWT_REFRESH_SECRET` | `z9y8x7w6v5u4t3s2z9y8x7w6v5u4t3s2z9y8x7w6v5u4t3s2z9y8x7w6v5` | 64-character random string |
+| `NODE_ENV` | `production` | Production mode |
+| `STORAGE_DRIVER` | `local` | Storage driver |
+
+5. Click **Deploy**.
+6. Vercel automatically runs `postinstall: prisma generate`, builds the Next.js bundle, and issues a live global HTTPS domain!
+
+---
+
+## 🚀 Option B: Railway + Vercel Deployment
+
+If you prefer using Railway's trial or credit-based infrastructure:
+
+1. **Railway PostgreSQL**:
+   - Click **New Project** → **Provision PostgreSQL**.
+   - Copy the public `DATABASE_URL` under **Variables**.
+2. **Railway Python Service**:
+   - Click **New** → **GitHub Repo** → select `earthmind-ai`.
+   - Railway auto-detects [`railway.json`](../railway.json) & [`nixpacks.toml`](../nixpacks.toml).
+   - Generate a domain under **Settings → Networking**.
+3. **Vercel**:
+   - Follow Step 4 above with your Railway `DATABASE_URL` and Railway service URL.
