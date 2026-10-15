@@ -49,7 +49,7 @@ function parseEnv(): RawEnvironment {
 
   const jwtSecret = process.env.JWT_SECRET || INSECURE_DEFAULT_JWT_SECRET;
   const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || INSECURE_DEFAULT_JWT_REFRESH_SECRET;
-  const dbUrl = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/earthmind';
+  const dbUrl = process.env.DATABASE_URL || 'file:./prisma/earthmind.db';
   const repositoryDriver = (process.env.EARTHMIND_REPOSITORY_DRIVER as RawEnvironment['REPOSITORY_DRIVER']) || 'prisma';
   const isOfflinePrototype = repositoryDriver === 'memory';
 

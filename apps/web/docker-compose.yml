@@ -18,7 +18,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=postgresql://earthmind:earthmind_secure_pass_2026@postgres:5432/earthmind_db?schema=public
+      - DATABASE_URL=${DATABASE_URL:-file:./prisma/earthmind.db}
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - STORAGE_DRIVER=local

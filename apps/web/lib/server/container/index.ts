@@ -13,6 +13,7 @@ import { MemoryCacheProvider, RedisCacheProvider, CacheService } from '../cache'
 import { getStorageProvider } from '../storage';
 import { eventBus } from '../events';
 import { envConfig } from '../config';
+import { prisma } from '../database/prisma';
 import {
   DatabaseService,
   MigrationService,
@@ -63,6 +64,7 @@ container.registerFactory(TOKENS.EventBus, () => {
 });
 
 // Database Infrastructure Services
+container.registerValue(TOKENS.PrismaClient, prisma);
 container.registerFactory(TOKENS.DatabaseService, () => new DatabaseService());
 container.registerFactory(TOKENS.MigrationService, () => new MigrationService());
 container.registerFactory(TOKENS.SeedService, () => new SeedService());
