@@ -90,7 +90,7 @@ class EarthMindAPIHandler(BaseHTTPRequestHandler):
         query_params = parse_qs(parsed_url.query)
 
         # 2. Health Endpoint
-        if path == '/api/health':
+        if path in ('/api/health', '/api/v1/health', '/v1/health', '/health'):
             health_status = {
                 "status": "healthy",
                 "service": settings.PROJECT_NAME,
