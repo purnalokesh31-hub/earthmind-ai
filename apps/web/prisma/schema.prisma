@@ -1,11 +1,11 @@
-// EarthMind PIOS - SQLite Database Schema (auto-migrated from PostgreSQL)
+// EarthMind PIOS - PostgreSQL Database Schema (Vercel + Railway Hybrid Architecture)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

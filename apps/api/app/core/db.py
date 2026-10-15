@@ -17,6 +17,9 @@ def _resolve_default_db_file():
     
     # If explicitly customized to a non-default path (e.g. tests)
     if db_url and db_url not in ("sqlite:///./earthmind.db", "sqlite:///./dev.db"):
+        if db_url.startswith("postgres://") or db_url.startswith("postgresql://"):
+            candidate = os.path.join(root_dir, "earthmind.db")
+            return candidate
         if db_url.startswith("sqlite:///"):
             path = db_url[len("sqlite:///"): ]
         elif db_url.startswith("file:"):

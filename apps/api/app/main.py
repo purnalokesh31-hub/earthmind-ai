@@ -664,10 +664,12 @@ class EarthMindAPIHandler(BaseHTTPRequestHandler):
     def send_error_response(self, status: int, message: str):
         self.send_json_response(status, {"detail": message})
 
-def run(port=8000):
+def run(port=None):
+    if port is None:
+        port = int(os.environ.get("PORT", 8000))
     server_address = ('', port)
     httpd = HTTPServer(server_address, EarthMindAPIHandler)
-    print(f"[Server] Running zero-dependency API server on http://localhost:{port}")
+    print(f"[Server] Running zero-dependency API server on port {port}")
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
